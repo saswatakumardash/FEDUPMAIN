@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useIsMobile } from "@/hooks/use-mobile"
 
 const introLines = [
   "❓ What’s FED UP About?",
@@ -55,7 +56,9 @@ function useNaturalTyping(lines: string[], minSpeed = 16, maxSpeed = 32, lineDel
 }
 
 export default function AboutFedUp() {
+  const isMobile = useIsMobile()
   const { displayedLines, currentText, isTyping, currentLine } = useNaturalTyping(introLines)
+  const allLines = introLines
   return (
     <motion.section
       initial={{ opacity: 0, y: 40 }}
@@ -69,45 +72,67 @@ export default function AboutFedUp() {
         style={{ boxShadow: "0 8px 48px 0 #7c3aed33, 0 1.5px 8px 0 #fff2" }}
       >
         <AnimatePresence>
-          {displayedLines.map((line, idx) => (
-            <motion.div
-              key={idx}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.45, delay: idx * 0.04 }}
-              className={
-                idx === 0
-                  ? "text-3xl md:text-4xl font-extrabold text-white mb-6 tracking-tight drop-shadow-[0_2px_32px_#7c3aed44] flex items-center gap-2"
-                  : line.startsWith("🌙") || line.startsWith("📩") || line.startsWith("🚀") || line.startsWith("📚")
-                  ? "pl-4 md:pl-8 text-base md:text-lg text-[#7c3aed] font-semibold mb-1 flex items-center gap-2"
-                  : "mb-3 font-mono text-lg md:text-xl text-gray-100"
-              }
-              style={{ fontFamily: idx === 0 ? 'inherit' : 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
-            >
-              {line}
-            </motion.div>
-          ))}
-          {isTyping && currentLine < introLines.length && currentText && (
-            <motion.div
-              key={displayedLines.length}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.45, delay: displayedLines.length * 0.04 }}
-              className={
-                displayedLines.length === 0
-                  ? "text-3xl md:text-4xl font-extrabold text-white mb-6 tracking-tight drop-shadow-[0_2px_32px_#7c3aed44] flex items-center gap-2"
-                  : introLines[displayedLines.length].startsWith("🌙") || introLines[displayedLines.length].startsWith("📩") || introLines[displayedLines.length].startsWith("🚀") || introLines[displayedLines.length].startsWith("📚")
-                  ? "pl-4 md:pl-8 text-base md:text-lg text-[#7c3aed] font-semibold mb-1 flex items-center gap-2"
-                  : "mb-3 font-mono text-lg md:text-xl text-gray-100"
-              }
-              style={{ fontFamily: displayedLines.length === 0 ? 'inherit' : 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
-            >
-              {currentText}
-              <span className="animate-pulse text-[#ec4899] ml-1">|</span>
-            </motion.div>
-          )}
+          {isMobile
+            ? allLines.map((line, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.45, delay: idx * 0.04 }}
+                  className={
+                    idx === 0
+                      ? "text-3xl md:text-4xl font-extrabold text-white mb-6 tracking-tight drop-shadow-[0_2px_32px_#7c3aed44] flex items-center gap-2"
+                      : line.startsWith("🌙") || line.startsWith("📩") || line.startsWith("🚀") || line.startsWith("📚")
+                      ? "pl-4 md:pl-8 text-base md:text-lg text-[#7c3aed] font-semibold mb-1 flex items-center gap-2"
+                      : "mb-3 font-mono text-lg md:text-xl text-gray-100"
+                  }
+                  style={{ fontFamily: idx === 0 ? 'inherit' : 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
+                >
+                  {line}
+                </motion.div>
+              ))
+            : <>
+                {displayedLines.map((line, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.45, delay: idx * 0.04 }}
+                    className={
+                      idx === 0
+                        ? "text-3xl md:text-4xl font-extrabold text-white mb-6 tracking-tight drop-shadow-[0_2px_32px_#7c3aed44] flex items-center gap-2"
+                        : line.startsWith("🌙") || line.startsWith("📩") || line.startsWith("🚀") || line.startsWith("📚")
+                        ? "pl-4 md:pl-8 text-base md:text-lg text-[#7c3aed] font-semibold mb-1 flex items-center gap-2"
+                        : "mb-3 font-mono text-lg md:text-xl text-gray-100"
+                    }
+                    style={{ fontFamily: idx === 0 ? 'inherit' : 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
+                  >
+                    {line}
+                  </motion.div>
+                ))}
+                {isTyping && currentLine < introLines.length && currentText && (
+                  <motion.div
+                    key={displayedLines.length}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.45, delay: displayedLines.length * 0.04 }}
+                    className={
+                      displayedLines.length === 0
+                        ? "text-3xl md:text-4xl font-extrabold text-white mb-6 tracking-tight drop-shadow-[0_2px_32px_#7c3aed44] flex items-center gap-2"
+                        : introLines[displayedLines.length].startsWith("🌙") || introLines[displayedLines.length].startsWith("📩") || introLines[displayedLines.length].startsWith("🚀") || introLines[displayedLines.length].startsWith("📚")
+                        ? "pl-4 md:pl-8 text-base md:text-lg text-[#7c3aed] font-semibold mb-1 flex items-center gap-2"
+                        : "mb-3 font-mono text-lg md:text-xl text-gray-100"
+                    }
+                    style={{ fontFamily: displayedLines.length === 0 ? 'inherit' : 'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}
+                  >
+                    {currentText}
+                    <span className="animate-pulse text-[#ec4899] ml-1">|</span>
+                  </motion.div>
+                )}
+              </>}
         </AnimatePresence>
       </div>
       <style jsx global>{`

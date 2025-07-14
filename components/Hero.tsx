@@ -57,16 +57,16 @@ export default function Hero() {
         </motion.p>
         {/* EmojiGlobe and WaitlistForm side by side, centered */}
         <motion.div
-          className="flex flex-col md:flex-row items-center justify-center gap-16 w-full mt-2"
+          className="flex flex-col md:flex-row items-center justify-center md:justify-between gap-8 md:gap-16 w-full mt-2 md:mt-8"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.5, type: "spring" }}
         >
-          <div className="flex-shrink-0 mb-10 md:mb-0">
+          <div className="flex-shrink-0 min-w-0 overflow-visible max-w-full md:max-w-[48%] xl:max-w-[44%] 2xl:max-w-[40%] flex items-center justify-center">
             <EmojiGlobe />
           </div>
           <motion.div
-            className="w-full max-w-lg flex flex-col items-center"
+            className="w-full max-w-lg flex flex-col items-center md:max-w-[52%] xl:max-w-[56%] 2xl:max-w-[60%]"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.7, type: "spring" }}

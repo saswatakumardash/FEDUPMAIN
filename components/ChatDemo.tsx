@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,12 +13,37 @@ interface Message {
   isUser: boolean
 }
 
+const CHAT_STORAGE_KEY = "fedup-chat-demo-state"
+const CHAT_LIMIT = 5
+
 export default function ChatDemo() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isLocked, setIsLocked] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const chatCardRef = useRef<HTMLDivElement>(null)
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const saved = localStorage.getItem(CHAT_STORAGE_KEY)
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        setMessages(parsed.messages || [])
+        setIsLocked(!!parsed.isLocked)
+      } catch {}
+    }
+  }, [])
+
+  // Save to localStorage on every update
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    localStorage.setItem(
+      CHAT_STORAGE_KEY,
+      JSON.stringify({ messages, isLocked })
+    )
+  }, [messages, isLocked])
 
   // Count user turns
   const userTurns = messages.filter((m) => m.isUser).length
@@ -50,8 +75,8 @@ export default function ChatDemo() {
 
       setMessages((prev) => [...prev, aiResponse])
 
-      // Lock after 3 user turns
-      if (userTurns + 1 >= 3) {
+      // Lock after 5 user turns
+      if (userTurns + 1 >= CHAT_LIMIT) {
         setTimeout(() => setIsLocked(true), 1200)
       }
     } catch (error) {
