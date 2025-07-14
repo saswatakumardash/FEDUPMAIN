@@ -1,4 +1,4 @@
-import React, { Suspense, useMemo } from "react"
+import React, { Suspense, useMemo, useEffect, useState } from "react"
 import { Canvas } from "@react-three/fiber"
 import { OrbitControls, Html } from "@react-three/drei"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -68,9 +68,30 @@ function EmojiSphere({ emojiList }: EmojiSphereProps) {
 
 export default function EmojiGlobe() {
   const isMobile = useIsMobile()
-  // On mobile, show a handpicked set of important emotions; on desktop, show all unique emojis
-  // If you see '??' tofu, manually remove unsupported emojis from RAW_EMOJIS
-  const emojiList = useMemo(() => isMobile ? MOBILE_PRIORITY_EMOJIS : EMOJIS, [isMobile])
+  // On mobile, show a handpicked set of important emotions
+  // On desktop, animate through all unique emojis in windows of 56
+  const PAGE_SIZE = 56
+  const ANIMATION_INTERVAL = 3000 // ms
+  const [page, setPage] = useState(0)
+  const totalPages = Math.ceil(EMOJIS.length / PAGE_SIZE)
+
+  useEffect(() => {
+    if (isMobile) return
+    const interval = setInterval(() => {
+      setPage((prev) => (prev + 1) % totalPages)
+    }, ANIMATION_INTERVAL)
+    return () => clearInterval(interval)
+  }, [isMobile, totalPages])
+
+  const emojiList = useMemo(() => {
+    if (isMobile) return MOBILE_PRIORITY_EMOJIS
+    const start = page * PAGE_SIZE
+    const end = start + PAGE_SIZE
+    return EMOJIS.slice(start, end).concat(
+      EMOJIS.length < PAGE_SIZE ? Array(PAGE_SIZE - EMOJIS.length).fill("") : []
+    )
+  }, [isMobile, page])
+
   // For even more performance, consider a Canvas-based emoji renderer in the future
   return (
     <div className="w-full h-[340px] md:h-[400px] xl:h-[520px] 2xl:h-[600px] max-w-[340px] md:max-w-[400px] xl:max-w-[520px] 2xl:max-w-[600px] aspect-square flex items-center justify-center">
