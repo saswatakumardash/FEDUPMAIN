@@ -66,8 +66,8 @@ export default function WaitlistForm() {
         <div className="mb-6">
           <div className="text-5xl mb-4">💙</div>
           <h3 className="text-3xl font-bold text-white mb-3">Ready for Real Support?</h3>
-          <p className="text-gray-300 text-lg mb-2">Join the first 30 people who are tired of fake positivity 😤</p>
-          <p className="text-gray-400">No BS. No toxic optimism. Just truth and real help 💯</p>
+          <p className="text-[#f85149] text-lg mb-2 font-semibold">Join the waitlist now — <span className="font-bold">30 early user spots left!</span> ⚡</p>
+          <p className="text-gray-400">Early access to the first 30 people. No BS. No toxic optimism. Just truth and real help 💯</p>
         </div>
 
         {/* Emotional Benefits */}
@@ -121,12 +121,12 @@ export default function WaitlistForm() {
             {isLoading ? (
               <span className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 animate-spin" />
-                Joining the movement...
+                Joining the waitlist...
               </span>
             ) : (
               <span className="flex items-center gap-2">
                 <Heart className="w-5 h-5" />
-                I'm Ready for Real Support 💜
+                Join the Waitlist Now
               </span>
             )}
           </Button>
@@ -134,8 +134,8 @@ export default function WaitlistForm() {
         {error && <div className="text-red-500 mt-2 text-sm">{error}</div>}
         {/* Urgency & Social Proof */}
         <div className="mt-6 space-y-2">
-          <p className="text-[#f85149] font-medium">⚡ Only 30 spots available</p>
-          <p className="text-gray-400 text-sm">Join others who are done with surface-level help 🤝</p>
+          <p className="text-[#f85149] font-medium">⚡ Early access to the first 30 people</p>
+          <p className="text-gray-400 text-sm">Don't miss your spot for real support 🤝</p>
         </div>
       </div>
     </motion.div>
