@@ -17,8 +17,34 @@ export const metadata: Metadata = {
     url: "https://fedup.theallin.tech",
     siteName: "FED UP",
     type: "website",
+    images: [
+      {
+        url: "/icon.png",
+        width: 512,
+        height: 512,
+        alt: "FED UP Logo",
+      },
+    ],
   },
-    generator: 'v0.dev'
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
+  generator: 'v0.dev',
+  twitter: {
+    card: "summary",
+    title: "FED UP — For the Tired, the Lost, the Real",
+    description: "An AI that listens, supports, and gives the truth. No filters. No toxic positivity.",
+    images: [
+      {
+        url: "/icon.png",
+        width: 512,
+        height: 512,
+        alt: "FED UP Logo",
+      },
+    ],
+  },
 }
 
 export default function RootLayout({
