@@ -68,8 +68,9 @@ function EmojiSphere({ emojiList }: EmojiSphereProps) {
 
 export default function EmojiGlobe() {
   const isMobile = useIsMobile()
-  // On mobile, show a handpicked set of 36 important emotions; on desktop, show first 64 unique
-  const emojiList = useMemo(() => isMobile ? MOBILE_PRIORITY_EMOJIS : EMOJIS.slice(0, 64), [isMobile])
+  // On mobile, show a handpicked set of important emotions; on desktop, show all unique emojis
+  // If you see '??' tofu, manually remove unsupported emojis from RAW_EMOJIS
+  const emojiList = useMemo(() => isMobile ? MOBILE_PRIORITY_EMOJIS : EMOJIS, [isMobile])
   // For even more performance, consider a Canvas-based emoji renderer in the future
   return (
     <div className="w-full h-[340px] md:h-[400px] xl:h-[520px] 2xl:h-[600px] max-w-[340px] md:max-w-[400px] xl:max-w-[520px] 2xl:max-w-[600px] aspect-square flex items-center justify-center">
