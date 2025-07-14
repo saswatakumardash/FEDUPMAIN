@@ -8,20 +8,29 @@ import BackgroundAnimation from "@/components/BackgroundAnimation"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "FED UP — For the Tired, the Lost, the Real",
-  description: "An AI that listens, supports, and gives the truth. No filters. No toxic positivity.",
-  keywords: "AI support, mental health, emotional AI, authentic conversations",
+  title: "FED UP – AI for the emotionally tired",
+  description: "A supportive, emotionally intelligent AI for when you’re fed up. Join the waitlist for early access.",
   openGraph: {
-    title: "FED UP — For the Tired, the Lost, the Real",
-    description: "An AI that listens, supports, and gives the truth. No filters. No toxic positivity.",
-    url: "https://fedup.theallin.tech",
-    siteName: "FED UP",
-    type: "website",
+    title: "FED UP – AI for the emotionally tired",
+    description: "A supportive, emotionally intelligent AI for when you’re fed up. Join the waitlist for early access.",
     images: [
       {
         url: "/icon.png",
         width: 512,
         height: 512,
+        alt: "FED UP Logo",
+      },
+    ],
+    type: "website",
+    siteName: "FED UP",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FED UP – AI for the emotionally tired",
+    description: "A supportive, emotionally intelligent AI for when you’re fed up. Join the waitlist for early access.",
+    images: [
+      {
+        url: "/icon.png",
         alt: "FED UP Logo",
       },
     ],
@@ -31,20 +40,7 @@ export const metadata: Metadata = {
     shortcut: "/icon.png",
     apple: "/icon.png",
   },
-  generator: 'v0.dev',
-  twitter: {
-    card: "summary",
-    title: "FED UP — For the Tired, the Lost, the Real",
-    description: "An AI that listens, supports, and gives the truth. No filters. No toxic positivity.",
-    images: [
-      {
-        url: "/icon.png",
-        width: 512,
-        height: 512,
-        alt: "FED UP Logo",
-      },
-    ],
-  },
+    generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -54,6 +50,13 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/icon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/icon.png" />
+        <meta property="og:image" content="/icon.png" />
+        <meta name="twitter:image" content="/icon.png" />
+        <meta name="twitter:card" content="summary_large_image" />
+      </head>
       <body className={inter.className}>
         <BackgroundAnimation />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange={false}>
