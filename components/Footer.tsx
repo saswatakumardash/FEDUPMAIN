@@ -27,7 +27,7 @@ export default function Footer() {
             <img src="/logo512.png" alt="SKD Logo" className="w-9 h-9 rounded-full border border-white/20 object-cover ml-1 align-middle shadow-lg bg-black/30" style={{ display: 'inline-block', verticalAlign: 'middle' }} />
           </a>
         </div>
-        <span className="text-xs text-gray-500 mt-1">© {new Date().getFullYear()} FED UP. All rights reserved.</span>
+        <span className="text-xs text-gray-500 mt-1">© {new Date().getFullYear()} The AlLiN Tech. All rights reserved.</span>
       </motion.div>
     </footer>
   )

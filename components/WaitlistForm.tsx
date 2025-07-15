@@ -1,14 +1,13 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Heart, Sparkles } from "lucide-react"
-// TODO: Import your Firebase config and Firestore instance here
-// import { db } from "@/lib/firebase";
-// import { collection, addDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 
 export default function WaitlistForm() {
   const [name, setName] = useState("")
@@ -17,28 +16,48 @@ export default function WaitlistForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const submitted = localStorage.getItem("waitlist_submitted");
+    if (submitted) setIsSubmitted(true);
+  }, []);
+
+  const validateEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError(null)
+    e.preventDefault();
+    setIsLoading(true);
+    setError(null);
+
+    if (!email || !validateEmail(email)) {
+      setError("Please enter a valid email address.");
+      setIsLoading(false);
+      return;
+    }
 
     try {
-      // TODO: Uncomment and use your Firebase Firestore logic here
-      // await addDoc(collection(db, "waitlist"), { name, email, createdAt: new Date() });
-      await new Promise((resolve) => setTimeout(resolve, 1000)) // Remove this line when Firebase is ready
-      setIsSubmitted(true)
+      // Check for duplicate email
+      const q = query(collection(db, "waitlist"), where("email", "==", email));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        setError("This email is already on the waitlist.");
+        setIsLoading(false);
+        return;
+      }
+      await addDoc(collection(db, "waitlist"), { name, email, createdAt: new Date() });
+      setIsSubmitted(true);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("waitlist_submitted", "1");
+      }
     } catch (err) {
-      setError("Something went wrong. Please try again.")
+      setError("Something went wrong. Please try again.");
     } finally {
-      setIsLoading(false)
-      setTimeout(() => {
-        setIsSubmitted(false)
-        setName("")
-        setEmail("")
-        setError(null)
-      }, 4000)
+      setIsLoading(false);
+      // Removed auto-reset logic so thank you message persists
     }
-  }
+  };
 
   if (isSubmitted) {
     return (
