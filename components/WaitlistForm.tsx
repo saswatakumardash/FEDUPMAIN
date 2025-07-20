@@ -6,8 +6,6 @@ import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Heart, Sparkles } from "lucide-react"
-import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, getDocs } from "firebase/firestore";
 
 export default function WaitlistForm() {
   const [name, setName] = useState("")
@@ -38,15 +36,17 @@ export default function WaitlistForm() {
     }
 
     try {
-      // Check for duplicate email
-      const q = query(collection(db, "waitlist"), where("email", "==", email));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        setError("This email is already on the waitlist.");
+      const res = await fetch("/api/waitlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Something went wrong. Please try again.");
         setIsLoading(false);
         return;
       }
-      await addDoc(collection(db, "waitlist"), { name, email, createdAt: new Date() });
       setIsSubmitted(true);
       if (typeof window !== "undefined") {
         localStorage.setItem("waitlist_submitted", "1");
@@ -55,7 +55,6 @@ export default function WaitlistForm() {
       setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
-      // Removed auto-reset logic so thank you message persists
     }
   };
 

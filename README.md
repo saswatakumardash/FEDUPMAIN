@@ -61,29 +61,13 @@ Create a `.env.local` file in the root with:
 
 ```
 # Gemini API
-NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+GEMINI_API_KEY=your_gemini_api_key
 
 # Firebase (for waitlist)
-NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_firebase_app_id
+FIREBASE_API_KEY=your_firebase_api_key
+FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
+FIREBASE_PROJECT_ID=your_firebase_project_id
+FIREBASE_STORAGE_BUCKET=your_firebase_storage_bucket
+FIREBASE_MESSAGING_SENDER_ID=your_firebase_messaging_sender_id
+FIREBASE_APP_ID=your_firebase_app_id
 ```
-
----
-
-## 📝 Contributing
-Pull requests are welcome! For major changes, open an issue first to discuss what you’d like to change.
-
----
-
-## 🙏 Credits
-- **Made by [Saswata Kumar Dash](https://skds.site)**
-- Inspired by Replika, Character.AI, and the real struggles of being human.
-
----
-
-## 📄 License
-MIT 

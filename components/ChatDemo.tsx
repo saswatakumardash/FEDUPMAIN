@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Send, Loader2 } from "lucide-react"
-import { generateResponse } from "@/lib/gemini"
+// REMOVE: import { generateResponse } from "@/lib/gemini"
 
 interface Message {
   id: number
@@ -65,7 +65,13 @@ export default function ChatDemo() {
     try {
       // Build conversation history for Gemini
       const conversationHistory = newMessages.map((m) => `${m.isUser ? "User" : "FED UP"}: ${m.text}`)
-      const aiResponseText = await generateResponse(input, conversationHistory)
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: input, conversationHistory }),
+      })
+      const data = await res.json()
+      const aiResponseText = data.response || "I hear you. That sounds really tough. Want to tell me more about what's weighing on you?"
 
       const aiResponse: Message = {
         id: Date.now() + 1,
