@@ -3,27 +3,41 @@ import { generateResponse } from '@/lib/gemini';
 import { generateDemoResponse } from '@/lib/gemini-demo';
 
 export async function POST(req: NextRequest) {
+  // Set CORS headers
+  const allowedOrigins = ['https://fedupmain.vercel.app', 'http://localhost:3000'];
+  const origin = req.headers.get('origin') || '';
+  const headers = {
+    'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  };
+  
+  // Handle preflight request
+  if (req.method === 'OPTIONS') {
+    return new NextResponse(null, { status: 204, headers });
+  }
+  
   try {
     const { message, conversationHistory } = await req.json();
     if (!message) {
-      return NextResponse.json({ error: 'Message is required.' }, { status: 400 });
+      return NextResponse.json({ error: 'Message is required.' }, { status: 400, headers });
     }
 
     try {
       // Build conversation history for Gemini
       const response = await generateDemoResponse(message);
-      return NextResponse.json({ response });
+      return NextResponse.json({ response }, { headers });
     } catch (error) {
       console.error('Gemini Error:', error);
       return NextResponse.json({ 
         response: "Hey, I'm here for you. What's going on?"
-      });
+      }, { headers });
     }
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json({ 
       error: 'Internal server error.',
       details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    }, { status: 500, headers });
   }
 }
