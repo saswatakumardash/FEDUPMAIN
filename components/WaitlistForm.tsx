@@ -1,75 +1,131 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Heart, Sparkles } from "lucide-react"
+import { Sparkles, Mail, User } from "lucide-react"
+import { GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "firebase/auth"
+import { auth } from "@/lib/firebase"
+import { useEffect, useRef } from "react"
+
+interface UserData {
+  uid: string
+  name: string | null
+  email: string | null
+  photo: string | null
+  provider: "google"
+}
+
+const TYPING_PHRASES = [
+  "Real emotional support.",
+  "No toxic optimism.",
+  "Just truth and real help.",
+  "Your bestfriend."
+];
 
 export default function WaitlistForm() {
-  const [name, setName] = useState("")
-  const [email, setEmail] = useState("")
-  const [isSubmitted, setIsSubmitted] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [user, setUser] = useState<UserData | null>(null)
   const [error, setError] = useState<string | null>(null)
+  
+  // State for the dynamic typing animation
+  const [phraseIndex, setPhraseIndex] = useState(0);
+  const [typingText, setTypingText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
 
+  // Typing animation effect
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const submitted = localStorage.getItem("waitlist_submitted");
-    if (submitted) setIsSubmitted(true);
-  }, []);
+    const handleTyping = () => {
+      const currentPhrase = TYPING_PHRASES[phraseIndex];
+      const newText = isDeleting
+        ? currentPhrase.substring(0, typingText.length - 1)
+        : currentPhrase.substring(0, typingText.length + 1);
 
-  const validateEmail = (email: string) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
+      setTypingText(newText);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
+      if (!isDeleting && newText === currentPhrase) {
+        // Pause at the end of a phrase, then start deleting
+        setTimeout(() => setIsDeleting(true), 1500);
+      } else if (isDeleting && newText === '') {
+        setIsDeleting(false);
+        // Move to the next phrase
+        setPhraseIndex((prev) => (prev + 1) % TYPING_PHRASES.length);
+      }
+    };
 
-    if (!email || !validateEmail(email)) {
-      setError("Please enter a valid email address.");
-      setIsLoading(false);
-      return;
+    const typingSpeed = isDeleting ? 50 : 100;
+    const timeout = setTimeout(handleTyping, typingSpeed);
+
+    return () => clearTimeout(timeout);
+  }, [typingText, isDeleting, phraseIndex]);
+
+  // Check localStorage for user on mount and listen to auth changes
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+    
+    // Listen to auth state changes
+    if (auth) {
+      const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+        if (firebaseUser && firebaseUser.providerData[0]?.providerId === 'google.com') {
+          const userData: UserData = {
+            uid: firebaseUser.uid,
+            name: firebaseUser.displayName,
+            email: firebaseUser.email,
+            photo: firebaseUser.photoURL,
+            provider: 'google'
+          }
+          setUser(userData)
+          localStorage.setItem("fedup_user", JSON.stringify(userData))
+        } else {
+          // User is logged out or not Google, clear everything
+          setUser(null)
+          localStorage.removeItem("fedup_user")
+        }
+      })
+      
+      return () => unsubscribe()
+    } else {
+      // Fallback: check localStorage if auth is not available
+      const saved = localStorage.getItem("fedup_user")
+      if (saved) setUser(JSON.parse(saved))
     }
+  }, [])
 
+  // Send user data to backend
+  const sendUserToBackend = async (userData: UserData) => {
     try {
-      const res = await fetch("/api/waitlist", {
+      await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Something went wrong. Please try again.");
-        setIsLoading(false);
-        return;
-      }
-      setIsSubmitted(true);
-      if (typeof window !== "undefined") {
-        localStorage.setItem("waitlist_submitted", "1");
-      }
-    } catch (err) {
-      setError("Something went wrong. Please try again.");
-    } finally {
-      setIsLoading(false);
+        body: JSON.stringify(userData),
+      })
+    } catch (e) {
+      // Ignore backend errors for now
     }
-  };
+  }
 
-  if (isSubmitted) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-[#161b22] border border-[#238636] rounded-xl p-8 max-w-lg mx-auto text-center"
-      >
-        <div className="text-6xl mb-4">🎉</div>
-        <h3 className="text-2xl font-semibold text-[#238636] mb-3">You're in! Welcome to the journey 💚</h3>
-        <p className="text-gray-300">We'll reach out when it's time. Get ready for real support 🚀</p>
-      </motion.div>
-    )
+  const handleLogin = async () => {
+    setError(null)
+    if (!auth) {
+      setError("Auth service is not available. Please try again later.")
+      return
+    }
+    const provider = new GoogleAuthProvider()
+    try {
+      const result = await signInWithPopup(auth, provider)
+      const userData: UserData = {
+        uid: result.user.uid,
+        name: result.user.displayName,
+        email: result.user.email,
+        photo: result.user.photoURL,
+        provider: "google",
+      }
+      localStorage.setItem("fedup_user", JSON.stringify(userData))
+      sendUserToBackend(userData)
+      // Immediate redirect without setting state
+      window.location.replace("/chat")
+    } catch (e: any) {
+      setError(e.message || "Login failed. Please try again.")
+    }
   }
 
   return (
@@ -80,81 +136,23 @@ export default function WaitlistForm() {
       className="max-w-lg mx-auto text-center"
     >
       <div className="bg-[#161b22] border border-[#30363d] rounded-xl p-8">
-        {/* Emotional Header */}
         <div className="mb-6">
           <div className="text-5xl mb-4">💙</div>
-          <h3 className="text-3xl font-bold text-white mb-3">Ready for Real Support?</h3>
-          <p className="text-[#f85149] text-lg mb-2 font-semibold">Join the waitlist now — <span className="font-bold">30 early user spots left!</span> ⚡</p>
-          <p className="text-gray-400">Early access to the first 30 people. No BS. No toxic optimism. Just truth and real help 💯</p>
+          <h3 className="text-3xl font-bold text-white mb-3">Welcome to FED UP</h3>
+          <p className="text-[#f85149] text-lg mb-2 font-semibold">Get started instantly.</p>
+          <p className="text-[#7c3aed] text-base min-h-[24px] font-mono h-6">{typingText}<span className="animate-ping">|</span></p>
+          <p className="text-gray-400">Sign in to unlock your emotional AI support. No toxic optimism. Just truth and real help 💯</p>
         </div>
-
-        {/* Emotional Benefits */}
-        <div className="mb-6 space-y-2 text-left">
-          <div className="flex items-center gap-3 text-gray-300">
-            <span className="text-xl">🌙</span>
-            <span>Available at 2 AM when you can't sleep</span>
-          </div>
-          <div className="flex items-center gap-3 text-gray-300">
-            <span className="text-xl">💔</span>
-            <span>Understands your pain without judgment</span>
-          </div>
-          <div className="flex items-center gap-3 text-gray-300">
-            <span className="text-xl">🔥</span>
-            <span>Gives you the truth you need to hear</span>
-          </div>
-          <div className="flex items-center gap-3 text-gray-300">
-            <span className="text-xl">💪</span>
-            <span>Helps you come back stronger</span>
-          </div>
-          <div className="flex items-center gap-3 text-gray-300">
-            <span className="text-xl">📱</span>
-            <span>For easy experience, an APK will also be provided.</span>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            type="text"
-            placeholder="Your name (we'll remember you) 👋"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            className="bg-[#0d1117] border-[#30363d] text-white placeholder:text-gray-500 focus:border-[#7c3aed] h-12 text-center"
-          />
-          <Input
-            type="email"
-            placeholder="Your email (safe with us) 🔒"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            className="bg-[#0d1117] border-[#30363d] text-white placeholder:text-gray-500 focus:border-[#7c3aed] h-12 text-center"
-          />
-
-          {/* Emotional CTA Button */}
+        <div className="flex flex-col gap-4 mt-8">
           <Button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-[#7c3aed] to-[#ec4899] hover:from-[#8b5cf6] hover:to-[#f472b6] text-white font-semibold py-4 h-14 rounded-lg transition-all duration-300 text-lg"
+            onClick={handleLogin}
+            className="w-full bg-gradient-to-r from-[#7c3aed] to-[#ec4899] hover:from-[#8b5cf6] hover:to-[#f472b6] text-white font-semibold py-4 h-14 rounded-lg transition-all duration-300 text-lg flex items-center justify-center gap-3"
           >
-            {isLoading ? (
-              <span className="flex items-center gap-2">
-                <Sparkles className="w-5 h-5 animate-spin" />
-                Joining the waitlist...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <Heart className="w-5 h-5" />
-                Join the Waitlist Now
-              </span>
-            )}
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-6 h-6 bg-white rounded-full" />
+            Continue with Google
           </Button>
-        </form>
-        {error && <div className="text-red-500 mt-2 text-sm">{error}</div>}
-        {/* Urgency & Social Proof */}
-        <div className="mt-6 space-y-2">
-          <p className="text-[#f85149] font-medium">⚡ Early access to the first 30 people</p>
-          <p className="text-gray-400 text-sm">Don't miss your spot for real support 🤝</p>
         </div>
+        {error && <div className="text-red-500 mt-4 text-sm">{error}</div>}
       </div>
     </motion.div>
   )

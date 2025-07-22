@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateResponse } from '@/lib/gemini';
 import { generateDemoResponse } from '@/lib/gemini-demo';
 
 export async function POST(req: NextRequest) {
@@ -10,17 +9,16 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // Build conversation history for Gemini
       const response = await generateDemoResponse(message);
       return NextResponse.json({ response });
     } catch (error) {
-      console.error('Gemini Error:', error);
+      console.error('Demo Gemini Error:', error);
       return NextResponse.json({ 
         response: "Hey, I'm here for you. What's going on?"
       });
     }
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('Demo API Error:', error);
     return NextResponse.json({ 
       error: 'Internal server error.',
       details: error instanceof Error ? error.message : 'Unknown error'

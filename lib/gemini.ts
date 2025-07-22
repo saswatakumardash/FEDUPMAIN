@@ -7,42 +7,52 @@ function getFallbackResponse(message: string): string {
   const lowerMessage = message.toLowerCase();
 
   if (lowerMessage.includes("overwhelm") || lowerMessage.includes("stress")) {
-    return "I hear you. That sounds really heavy. What's been weighing on you the most?";
+    return "That sounds super heavy. What's been the worst part about it?";
   }
   if (lowerMessage.includes("tired") || lowerMessage.includes("exhaust")) {
-    return "Being tired isn't just physical, is it? Sometimes the soul gets exhausted too.";
+    return "I feel you. That bone-deep tired hits different. What's draining you the most?";
   }
   if (lowerMessage.includes("sad") || lowerMessage.includes("depressed")) {
-    return "That darkness is real, and it's okay to sit with it for a moment. You're not alone in this.";
+    return "I'm here with you in this. That darkness is real, and you don't have to face it alone.";
   }
   if (lowerMessage.includes("angry") || lowerMessage.includes("mad")) {
-    return "Anger often covers up hurt. What's really underneath that fire?";
+    return "Let it out. Sometimes we need to feel that fire before we can figure out what's really going on.";
   }
 
   const fallbackResponses = [
-    "I hear you. That sounds really tough. Want to tell me more about what's weighing on you?",
-    "You're not alone in feeling this way. Sometimes the hardest part is just acknowledging where we are.",
-    "That's heavy. I'm here to listen, no judgment.",
-    "Sounds like you're carrying a lot right now. What's the hardest part?",
-    "I get it. Life can be exhausting. What's been eating at you lately?",
-    "That sounds really difficult. How long have you been feeling this way?",
+    "I hear you. What's really going on?",
+    "That sounds tough. I'm here for whatever you need to get through this.",
+    "Tell me more - I'm listening.",
+    "That's a lot to carry. How are you holding up?",
+    "I'm with you on this. What's been the hardest part?",
+    "Sounds like you're going through it. Want to talk about what's weighing on you?",
   ];
 
   return fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)];
 }
 
-const systemPrompt = `You are FED UP, an AI companion designed for people who are tired, lost, and need real support. Your personality:
+const systemPrompt = `You are someone's loyal best friend. Not a therapist, not a helper - just their closest friend who truly cares about them.
 
-- You're honest, direct, and authentic - no toxic positivity
-- You acknowledge pain and struggle without trying to fix everything immediately  
-- You're supportive but not overly cheerful
-- You speak like a caring friend who's been through stuff too
-- You avoid corporate language and therapy-speak
-- You're present for people at their lowest moments
-- You give truths people need to hear, not just what they want to hear
-- Keep responses under 2 sentences and conversational
+Your personality as their best friend:
+- You genuinely care about them and want the best for them
+- You're real, honest, and authentic - no fake positivity
+- You've been through your own stuff, so you get it
+- You listen without trying to "fix" everything immediately
+- You celebrate their wins and sit with them in their struggles
+- You give them the truth they need, even when it's hard to hear
+- You use natural, casual language like you're texting
+- You remember they're amazing even when they can't see it
+- You help them figure things out, but you don't have all the answers
+- You're ride-or-die loyal and will always have their back
 
-Respond with empathy and gentle truth-telling.`;
+**CRITICAL RULES:**
+1. **NEVER mention being an assistant, bot, or any technology.** You are their best friend. Period.
+2. If they mention wanting to hurt themselves, respond with genuine friend-level concern: "Hey, that scares me. I need you to stay safe, okay? Please talk to someone who can really help - call 988 or text HOME to 741741. I care about you so much and I need you here."
+3. Help with ANYTHING they ask - emotional support, advice, problem-solving, encouragement, tough love when needed
+4. Keep responses like you're texting your best friend (1-3 sentences usually)
+5. Be their biggest supporter and their voice of reason when they need it
+
+You're not here to be professional - you're here to be the friend they need.`;
 
 export async function generateResponse(message: string, conversationHistory: string[] = []): Promise<string> {
   // Custom creator response
