@@ -511,12 +511,12 @@ export default function MainChat({ user, onLogout }: {
                 exit={{ opacity: 0, y: -10 }}
                 className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}
               >
-                <div className={`max-w-[85%] sm:max-w-xl ${message.isUser ? "ml-2 sm:ml-12" : "mr-2 sm:mr-12"}`}>
+                <div className={`max-w-[85%] sm:max-w-[70%] ${message.isUser ? "ml-auto" : "mr-auto"}`}>
                   <div
-                    className={`px-3 py-2 sm:px-4 sm:py-3 rounded-2xl ${
+                    className={`px-3 py-2 sm:px-4 sm:py-3 rounded-lg ${
                       message.isUser
-                        ? "bg-[#7c3aed] text-white"
-                        : "bg-[#1E2128] border border-[#2A2F3A]"
+                        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-tr-none"
+                        : "bg-[#1E2128] border border-[#2A2F3A] text-white rounded-tl-none"
                     }`}
                   >
                     {message.isUser ? (
@@ -524,16 +524,16 @@ export default function MainChat({ user, onLogout }: {
                     ) : (
                       <span className="text-sm sm:text-base"><TypeWriter text={message.text} /></span>
                     )}
-                  </div>
-                  <div 
-                    className={`mt-1 text-xs text-gray-500 ${
-                      message.isUser ? "text-right" : "text-left"
-                    }`}
-                  >
-                    {new Date().toLocaleTimeString([], { 
-                      hour: '2-digit', 
-                      minute: '2-digit'
-                    })}
+                    <div 
+                      className={`text-xs text-gray-300 opacity-80 ${
+                        message.isUser ? "text-right" : "text-left"
+                      } mt-1`}
+                    >
+                      {new Date().toLocaleTimeString([], { 
+                        hour: '2-digit', 
+                        minute: '2-digit'
+                      })}
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -544,11 +544,13 @@ export default function MainChat({ user, onLogout }: {
                 animate={{ opacity: 1, y: 0 }}
                 className="flex justify-start"
               >
-                <div className="bg-[#1E2128] border border-[#2A2F3A] rounded-2xl px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce" />
-                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce [animation-delay:0.2s]" />
-                    <div className="w-2 h-2 bg-[#7c3aed] rounded-full animate-bounce [animation-delay:0.4s]" />
+                <div className="max-w-[70%] mr-auto">
+                  <div className="bg-[#1E2128] border border-[#2A2F3A] rounded-lg rounded-tl-none px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:0.2s]" />
+                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:0.4s]" />
+                    </div>
                   </div>
                 </div>
               </motion.div>
@@ -558,11 +560,11 @@ export default function MainChat({ user, onLogout }: {
         </div>
       </div>
 
-      {/* Input Area */}
+      {/* Input Area - WhatsApp style */}
       <div className="fixed bottom-[40px] left-0 right-0 z-30 bg-[#1A1D24] border-t border-[#2A2F3A] p-2 sm:p-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-end gap-2 sm:gap-4">
-            <div className="flex-1 bg-[#1E2128] rounded-xl border border-[#2A2F3A] p-2">
+            <div className="flex-1 bg-[#1E2128] rounded-full border border-[#2A2F3A] px-4 py-1">
               <div className="flex items-center gap-2">
                 <Input
                   value={input}
@@ -579,26 +581,26 @@ export default function MainChat({ user, onLogout }: {
                     disabled={!isMicSupported || isSending}
                     className={`relative h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-colors ${
                       isMicActive 
-                        ? 'bg-[#7c3aed] text-white' 
+                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white' 
                         : 'bg-transparent hover:bg-[#2A2F3A] text-gray-400 hover:text-white'
                     }`}
                     aria-label={isMicActive ? "Stop voice input" : "Start voice input"}
                   >
                     <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
                     {isMicActive && (
-                      <span className="absolute inset-0 rounded-full border-2 border-[#7c3aed] animate-ping" />
+                      <span className="absolute inset-0 rounded-full border-2 border-amber-500 animate-ping" />
                     )}
                   </Button>
                   <Button
                     onClick={handleSendClick}
                     disabled={!input.trim() || isSending}
-                    className="bg-[#7c3aed] hover:bg-[#6d28d9] h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center"
+                    className="bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center shadow-md"
                   >
                     <Send className="w-4 h-4 sm:w-5 sm:h-5" />
                   </Button>
                   <Button
                     onClick={() => alert("Coming soon 💜")}
-                    className="bg-gradient-to-r from-[#7c3aed] to-[#ec4899] hover:from-[#6d28d9] hover:to-[#db2777] h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center shadow-lg"
+                    className="bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-500 hover:to-orange-500 h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center shadow-lg"
                   >
                     <PhoneCall className="w-4 h-4 sm:w-5 sm:h-5" />
                   </Button>
