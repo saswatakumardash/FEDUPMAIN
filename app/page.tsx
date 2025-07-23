@@ -13,10 +13,10 @@ export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
-    // If user is already logged in, redirect to chat
+    // If user is already logged in, redirect to chat immediately
     const unsubscribe = auth?.onAuthStateChanged((user) => {
-      if (user) {
-        router.push("/chat")
+      if (user && user.providerData[0]?.providerId === "google.com") {
+        router.replace("/chat")
       }
     })
 

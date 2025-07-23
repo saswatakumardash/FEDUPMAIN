@@ -60,7 +60,7 @@ export default function MainChat({ user, onLogout }: {
   user: UserData;
   onLogout: () => void 
 }) {
-  const [showLoading, setShowLoading] = useState(true)
+  const [showLoading, setShowLoading] = useState(false)
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState("")
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false)
@@ -82,6 +82,50 @@ export default function MainChat({ user, onLogout }: {
   const CHAT_STATS_KEY = `fedup-chat-stats-${user.uid}`
   const CHAT_MESSAGES_KEY = `fedup-chat-messages-${user.uid}`
 
+  // Function to add initial welcome message from FedUp
+  const addWelcomeMessage = () => {
+    // Check if user has been away (last message older than 1 hour)
+    const lastMessageTime = localStorage.getItem(`fedup-last-active-${user.uid}`)
+    const now = Date.now()
+    const oneHour = 60 * 60 * 1000 // 1 hour in milliseconds
+    const isReturningUser = lastMessageTime && (now - parseInt(lastMessageTime)) > oneHour
+    
+    let welcomeMessages = []
+    
+    if (isReturningUser) {
+      // Returning user messages
+      welcomeMessages = [
+        `Hey bestie ${user.name?.split(' ')[0] || "friend"}, welcome back! Wassup? 💙`,
+        `Yooo ${user.name?.split(' ')[0] || "friend"}! You're back! What's been going on? 💜`,
+        `Hey ${user.name?.split(' ')[0] || "friend"}! Good to see you again! What's on your mind? 🤗`,
+        `Sup ${user.name?.split(' ')[0] || "friend"}! Missed you bestie! Ready to catch up? 💯`
+      ]
+    } else {
+      // First time or recent user messages - ALWAYS show for login/reload/revisit
+      welcomeMessages = [
+        `Hey wassup best friend ${user.name?.split(' ')[0] || "bestie"}! 💙`,
+        `Yooo ${user.name?.split(' ')[0] || "bestie"}! What's good? I'm here for you best friend 💜`,
+        `Hey ${user.name?.split(' ')[0] || "bestie"}! What's on your mind today best friend? I'm all ears 🤗`,
+        `Sup ${user.name?.split(' ')[0] || "bestie"}! Ready to spill the tea best friend? I'm here for whatever you need 💯`
+      ]
+    }
+    
+    const randomWelcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)]
+    
+    const welcomeMessage: Message = {
+      id: Date.now(),
+      text: randomWelcome,
+      isUser: false
+    }
+    
+    setMessages([welcomeMessage])
+    
+    // Save to localStorage
+    localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify([welcomeMessage]))
+    // Update last active time
+    localStorage.setItem(`fedup-last-active-${user.uid}`, now.toString())
+  }
+
   // Load messages and stats from localStorage
   useEffect(() => {
     if (typeof window === "undefined" || !user) return
@@ -96,14 +140,33 @@ export default function MainChat({ user, onLogout }: {
       } catch {}
     }
     
-    // Load chat messages
-    const savedMessages = localStorage.getItem(CHAT_MESSAGES_KEY)
-    if (savedMessages) {
-      try {
-        const parsedMessages = JSON.parse(savedMessages)
-        setMessages(parsedMessages || [])
-      } catch (error) {
-        console.error("Error loading chat messages:", error)
+    // Check if this is a fresh session (login, reload, or revisit)
+    const sessionKey = `fedup-session-${user.uid}`
+    const currentSession = sessionStorage.getItem(sessionKey)
+    
+    if (!currentSession) {
+      // Fresh session - always show welcome message
+      sessionStorage.setItem(sessionKey, Date.now().toString())
+      addWelcomeMessage()
+    } else {
+      // Load existing chat messages
+      const savedMessages = localStorage.getItem(CHAT_MESSAGES_KEY)
+      if (savedMessages) {
+        try {
+          const parsedMessages = JSON.parse(savedMessages)
+          if (parsedMessages && parsedMessages.length > 0) {
+            setMessages(parsedMessages)
+          } else {
+            // No existing messages, show welcome
+            addWelcomeMessage()
+          }
+        } catch (error) {
+          console.error("Error loading chat messages:", error)
+          addWelcomeMessage()
+        }
+      } else {
+        // No saved messages, show welcome
+        addWelcomeMessage()
       }
     }
   }, [user, CHAT_STATS_KEY, CHAT_MESSAGES_KEY])
@@ -122,12 +185,6 @@ export default function MainChat({ user, onLogout }: {
     if (typeof window === "undefined" || !user || messages.length === 0) return
     localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(messages))
   }, [messages, user, CHAT_MESSAGES_KEY])
-
-  // Show loading screen on mount
-  useEffect(() => {
-    const timer = setTimeout(() => setShowLoading(false), 1000) // Reduced from 2500ms to 1000ms
-    return () => clearTimeout(timer)
-  }, [])
 
   // Close any dropdown when clicking outside
   useEffect(() => {
@@ -330,6 +387,8 @@ export default function MainChat({ user, onLogout }: {
       }
     } finally {
       setIsSending(false)
+      // Track last active time for return user detection
+      sessionStorage.setItem('lastActiveTime', Date.now().toString())
     }
   }
 

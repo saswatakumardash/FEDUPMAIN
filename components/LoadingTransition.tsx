@@ -9,13 +9,13 @@ export default function LoadingTransition() {
       initial={{ opacity: 1 }}
       animate={{ opacity: 0 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 1, delay: 1.5 }}
+      transition={{ duration: 0.8, delay: 1.2 }}
     >
       <motion.div 
         className="relative w-32 h-32"
         initial={{ scale: 0.8, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
       >
         <img src="/fedup-logo.png" alt="FED UP Logo" className="w-full h-full" />
         <motion.div
@@ -26,7 +26,7 @@ export default function LoadingTransition() {
             opacity: [1, 0.5, 1],
           }}
           transition={{
-            duration: 2,
+            duration: 1.5,
             repeat: Infinity,
             ease: "easeInOut"
           }}
@@ -36,9 +36,9 @@ export default function LoadingTransition() {
         className="mt-8 text-white text-xl font-medium"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
+        transition={{ delay: 0.2 }}
       >
-        Preparing your safe space...
+        Setting up your space...
       </motion.p>
       <div className="mt-4 flex gap-3">
         {["😊", "💜", "✨"].map((emoji, i) => (
@@ -47,7 +47,7 @@ export default function LoadingTransition() {
             className="text-2xl"
             initial={{ opacity: 0, scale: 0 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 + i * 0.2 }}
+            transition={{ delay: 0.4 + i * 0.15 }}
           >
             {emoji}
           </motion.span>

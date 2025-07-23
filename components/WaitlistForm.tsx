@@ -121,7 +121,8 @@ export default function WaitlistForm() {
       }
       localStorage.setItem("fedup_user", JSON.stringify(userData))
       sendUserToBackend(userData)
-      // Immediate redirect without setting state
+      
+      // Immediate redirect to chat - no loading, no delays
       window.location.replace("/chat")
     } catch (e: any) {
       setError(e.message || "Login failed. Please try again.")
