@@ -373,33 +373,33 @@ export default function MainChat({ user, onLogout }: {
       </div>
       
       {/* Header */}
-      <div className="fixed top-0 left-0 right-0 z-20 bg-[#1A1D24] border-b border-[#2A2F3A] p-3 sm:p-4">
+      <div className="fixed top-0 left-0 right-0 z-20 bg-[#1A1D24] border-b border-[#2A2F3A] p-2 sm:p-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <img src="/fedup-logo.png" alt="FED UP" className="w-8 h-8 sm:w-10 sm:h-10" />
-            <h1 className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-[#7c3aed] to-[#ec4899] text-transparent bg-clip-text">
-              FED UP Chat
+          <div className="flex items-center gap-1 sm:gap-3">
+            <img src="/fedup-logo.png" alt="FED UP" className="w-7 h-7 sm:w-10 sm:h-10" />
+            <h1 className="text-base sm:text-xl font-semibold bg-gradient-to-r from-[#7c3aed] to-[#ec4899] text-transparent bg-clip-text">
+              FED UP<span className="hidden sm:inline"> Chat</span>
             </h1>
           </div>
           
-          <div className="text-center flex-1 px-2 sm:px-4">
-            <p className="text-gray-400 text-sm sm:text-base truncate">
-              Hey {user.name || "friend"}, I'm here for you
+          <div className="text-center flex-1 px-1 sm:px-4">
+            <p className="text-gray-400 text-xs sm:text-base truncate">
+              Hey {user.name?.split(' ')[0] || "friend"}, I'm here for you
             </p>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-1 sm:gap-4">
             <div className="relative">
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-gray-400 hover:text-white settings-button"
+                className="text-gray-400 hover:text-white settings-button h-8 w-8 sm:h-10 sm:w-10"
                 onClick={() => setShowSettings(!showSettings)}
               >
-                <Settings className="w-5 h-5" />
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
               {showSettings && (
-                <div className="settings-menu absolute right-0 mt-2 w-72 sm:w-64 rounded-lg bg-[#1E2128] border border-[#2A2F3A] shadow-lg z-50">
+                <div className="settings-menu absolute right-0 mt-2 w-64 sm:w-64 rounded-lg bg-[#1E2128] border border-[#2A2F3A] shadow-lg z-50">
                   <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-300">Voice Responses</span>
@@ -432,22 +432,22 @@ export default function MainChat({ user, onLogout }: {
             <Button
               variant="ghost"
               size="icon"
-              className="text-gray-400 hover:text-white"
+              className="text-gray-400 hover:text-white h-8 w-8 sm:h-10 sm:w-10"
               onClick={onLogout}
             >
-              <LogOut className="w-5 h-5" />
+              <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
             </Button>
             <img 
               src={user.photo || "/placeholder-user.jpg"}
               alt="Profile"
-              className="w-8 h-8 rounded-full border border-[#2A2F3A]"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full border border-[#2A2F3A]"
             />
           </div>
         </div>
       </div>
 
       {/* Main Chat Area */}
-      <div className="pt-16 sm:pt-20 pb-36 sm:pb-40 px-3 sm:px-4 max-w-6xl mx-auto">
+      <div className="pt-16 sm:pt-20 pb-36 sm:pb-40 px-2 sm:px-4 max-w-6xl mx-auto">
         <div className="space-y-3 sm:space-y-4">
           <AnimatePresence>
             {messages.map((message) => (
@@ -458,7 +458,7 @@ export default function MainChat({ user, onLogout }: {
                 exit={{ opacity: 0, y: -10 }}
                 className={`flex ${message.isUser ? "justify-end" : "justify-start"}`}
               >
-                <div className={`max-w-[80%] sm:max-w-xl ${message.isUser ? "ml-4 sm:ml-12" : "mr-4 sm:mr-12"}`}>
+                <div className={`max-w-[85%] sm:max-w-xl ${message.isUser ? "ml-2 sm:ml-12" : "mr-2 sm:mr-12"}`}>
                   <div
                     className={`px-3 py-2 sm:px-4 sm:py-3 rounded-2xl ${
                       message.isUser
@@ -467,9 +467,9 @@ export default function MainChat({ user, onLogout }: {
                     }`}
                   >
                     {message.isUser ? (
-                      message.text
+                      <span className="text-sm sm:text-base">{message.text}</span>
                     ) : (
-                      <TypeWriter text={message.text} />
+                      <span className="text-sm sm:text-base"><TypeWriter text={message.text} /></span>
                     )}
                   </div>
                   <div 
@@ -519,12 +519,12 @@ export default function MainChat({ user, onLogout }: {
                   className="bg-transparent border-0 focus:ring-0 text-white placeholder:text-gray-500 text-sm sm:text-base h-9 sm:h-10"
                   disabled={isSending}
                 />
-                <div className="flex items-center gap-1 sm:gap-2">
+                <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
                   <Button
                     type="button"
                     onClick={handleMicClick}
                     disabled={!isMicSupported || isSending}
-                    className={`relative h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-colors ${
+                    className={`relative h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-colors ${
                       isMicActive 
                         ? 'bg-[#7c3aed] text-white' 
                         : 'bg-transparent hover:bg-[#2A2F3A] text-gray-400 hover:text-white'
@@ -539,32 +539,32 @@ export default function MainChat({ user, onLogout }: {
                   <Button
                     onClick={handleSendClick}
                     disabled={!input.trim() || isSending}
-                    className="bg-[#7c3aed] hover:bg-[#6d28d9] h-9 w-9 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center"
+                    className="bg-[#7c3aed] hover:bg-[#6d28d9] h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center"
                   >
                     <Send className="w-4 h-4 sm:w-5 sm:h-5" />
                   </Button>
                   <Button
                     onClick={() => alert("Coming soon 💜")}
-                    className="bg-gradient-to-r from-[#7c3aed] to-[#ec4899] hover:from-[#6d28d9] hover:to-[#db2777] h-9 w-9 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center shadow-lg"
+                    className="bg-gradient-to-r from-[#7c3aed] to-[#ec4899] hover:from-[#6d28d9] hover:to-[#db2777] h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center shadow-lg"
                   >
                     <PhoneCall className="w-4 h-4 sm:w-5 sm:h-5" />
                   </Button>
                 </div>
               </div>
-              <div className="mt-2 px-2 flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm gap-2 sm:gap-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400 text-xs sm:text-sm">🎧 Voice</span>
+              <div className="mt-2 px-1 sm:px-2 flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm gap-1 sm:gap-4">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                  <div className="flex items-center gap-1">
+                    <span className="text-gray-400 text-xs">🎧 Voice</span>
                     <Switch
                       checked={isVoiceEnabled}
                       onCheckedChange={setIsVoiceEnabled}
-                      className="scale-75"
+                      className="scale-70"
                     />
                   </div>
                   {(isVoiceEnabled || wasLastInputVoice.current) && (
                     availableVoices.length > 0 ? (
                       <select
-                        className="bg-[#2A2F3A] text-white border border-[#7c3aed] rounded px-2 py-1 text-xs"
+                        className="bg-[#2A2F3A] text-white border border-[#7c3aed] rounded px-1 py-1 text-xs max-w-[110px] sm:max-w-none truncate"
                         value={selectedVoice}
                         onChange={e => setSelectedVoice(e.target.value)}
                       >
@@ -578,13 +578,13 @@ export default function MainChat({ user, onLogout }: {
                       <span className="text-gray-400 text-xs">Loading voices…</span>
                     )
                   )}
-                </div>
-                <div className="text-xs text-gray-400">
-                  <span>💬 {100 - userTurns} chats | 🎙 {80 - voiceUserTurns} voice</span>
+                  <div className="text-xs text-gray-400 ml-auto sm:ml-0">
+                    <span>💬 {100 - userTurns} | 🎙 {80 - voiceUserTurns}</span>
+                  </div>
                 </div>
               </div>
               {micError && (
-                <div className="mt-2 text-[#f85149] text-xs text-center">{micError}</div>
+                <div className="mt-1 text-[#f85149] text-xs text-center">{micError}</div>
               )}
             </div>
           </div>
@@ -593,16 +593,16 @@ export default function MainChat({ user, onLogout }: {
 
       {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 z-20 w-full">
-        <div className="bg-[#1A1D24] border-t border-[#2A2F3A] px-4">
+        <div className="bg-[#1A1D24] border-t border-[#2A2F3A]">
           <div className="max-w-6xl mx-auto">
-            <div className="py-2 sm:py-3 flex items-center justify-center">
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-gray-400">
+            <div className="py-1 sm:py-2 flex items-center justify-center">
+              <div className="flex items-center gap-1 text-xs text-gray-400">
                 <span>Made with 💜 by</span>
                 <a 
                   href="https://skds.site" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-[#7c3aed] hover:text-[#6d28d9] transition-colors"
+                  className="flex items-center gap-1 text-[#7c3aed] hover:text-[#6d28d9] transition-colors"
                 >
                   <span className="hidden sm:inline">Saswata Kumar Dash</span>
                   <span className="sm:hidden">SKDS</span>

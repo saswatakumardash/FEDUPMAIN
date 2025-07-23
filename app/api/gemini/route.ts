@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     } catch (error) {
       console.error('Gemini Error:', error);
       return NextResponse.json({ 
-        response: "I'm here for you - always. What's been going on lately? Maybe I can help brainstorm some solutions."
+        response: "Hey bestie, I'm here for you - always. What's been going on lately? Maybe I can help brainstorm some solutions. That's what best friends are for!"
       }, { headers });
     }
   } catch (error) {
