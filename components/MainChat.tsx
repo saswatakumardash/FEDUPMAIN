@@ -77,6 +77,16 @@ export default function MainChat({ user, onLogout }: {
   const [userTurns, setUserTurns] = useState(0)
   const [voiceUserTurns, setVoiceUserTurns] = useState(0)
   const [showSettings, setShowSettings] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+
+  // Detect mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(mobile);
+    };
+    checkMobile();
+  }, []);
 
   // Create user-specific storage keys
   const CHAT_STATS_KEY = `fedup-chat-stats-${user.uid}`
@@ -211,7 +221,10 @@ export default function MainChat({ user, onLogout }: {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Setup Speech Recognition
+    // Check if mobile device
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Setup Speech Recognition (more mobile-friendly)
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       setIsMicSupported(true);
@@ -219,36 +232,73 @@ export default function MainChat({ user, onLogout }: {
       recognition.lang = 'en-US';
       recognition.continuous = false;
       recognition.interimResults = false;
+      
+      // Mobile-specific settings
+      if (isMobile) {
+        recognition.maxAlternatives = 1;
+      }
+      
       recognitionRef.current = recognition;
     }
 
-    // Setup Speech Synthesis
+    // Setup Speech Synthesis (improved mobile support)
     if (window.speechSynthesis) {
       const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
-        const englishVoices = voices.filter(voice => 
+        
+        // Filter voices for mobile compatibility
+        let englishVoices = voices.filter(voice => 
           voice.lang.startsWith('en-') && 
-          !voice.name.toLowerCase().includes('zira')
+          !voice.name.toLowerCase().includes('zira') &&
+          !voice.name.toLowerCase().includes('microsoft')
         );
+        
+        // For mobile, prefer system voices
+        if (isMobile) {
+          englishVoices = englishVoices.filter(voice => 
+            voice.localService || 
+            voice.name.toLowerCase().includes('google') ||
+            voice.name.toLowerCase().includes('samsung') ||
+            voice.name.toLowerCase().includes('default')
+          );
+        }
         
         setAvailableVoices(englishVoices);
         
-        // Find best voice (prefer natural-sounding female voices)
-        const defaultVoice = englishVoices.find(v => 
-          (v.name.toLowerCase().includes('samantha') || 
-           v.name.toLowerCase().includes('natural') ||
-           v.name.toLowerCase().includes('enhanced')) &&
-          v.name.toLowerCase().includes('female')
-        ) || englishVoices.find(v => v.name.toLowerCase().includes('female')) || 
-           englishVoices[0];
+        // Find best voice with mobile preference
+        let defaultVoice;
+        if (isMobile) {
+          // Mobile: prefer Google, Samsung, or default voices
+          defaultVoice = englishVoices.find(v => 
+            v.name.toLowerCase().includes('google') ||
+            v.name.toLowerCase().includes('samsung') ||
+            v.name.toLowerCase().includes('default')
+          ) || englishVoices[0];
+        } else {
+          // Desktop: prefer natural-sounding female voices
+          defaultVoice = englishVoices.find(v => 
+            (v.name.toLowerCase().includes('samantha') || 
+             v.name.toLowerCase().includes('natural') ||
+             v.name.toLowerCase().includes('enhanced')) &&
+            v.name.toLowerCase().includes('female')
+          ) || englishVoices.find(v => v.name.toLowerCase().includes('female')) || 
+             englishVoices[0];
+        }
         
         if (defaultVoice && !selectedVoice) {
           setSelectedVoice(defaultVoice.name);
         }
       };
 
+      // Multiple attempts to load voices (mobile browsers need this)
       loadVoices();
-      window.speechSynthesis.onvoiceschanged = loadVoices;
+      if (window.speechSynthesis.onvoiceschanged !== undefined) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+      }
+      
+      // Fallback for mobile browsers
+      setTimeout(loadVoices, 100);
+      setTimeout(loadVoices, 500);
     }
 
     // Cleanup
@@ -270,16 +320,117 @@ export default function MainChat({ user, onLogout }: {
       // Stop any currently playing speech
       window.speechSynthesis.cancel();
       
-      const utterance = new SpeechSynthesisUtterance(text);
+      // Clean text for better speech synthesis (convert emojis to words)
+      const cleanText = text
+        .replace(/💙/g, ' blue heart ')
+        .replace(/💜/g, ' purple heart ')
+        .replace(/🤗/g, ' hugging face ')
+        .replace(/💯/g, ' hundred points ')
+        .replace(/😊/g, ' smiling face ')
+        .replace(/😢/g, ' sad face ')
+        .replace(/😭/g, ' crying face ')
+        .replace(/❤️/g, ' red heart ')
+        .replace(/💕/g, ' two hearts ')
+        .replace(/🥺/g, ' pleading face ')
+        .replace(/😌/g, ' relieved face ')
+        .replace(/🙏/g, ' folded hands ')
+        .replace(/✨/g, ' sparkles ')
+        .replace(/🌟/g, ' star ')
+        .replace(/💖/g, ' sparkling heart ')
+        .replace(/🫂/g, ' people hugging ')
+        .replace(/🤍/g, ' white heart ')
+        .replace(/💗/g, ' growing heart ')
+        .replace(/💛/g, ' yellow heart ')
+        .replace(/🧡/g, ' orange heart ')
+        .replace(/💚/g, ' green heart ')
+        .replace(/🖤/g, ' black heart ')
+        .replace(/🤎/g, ' brown heart ')
+        .replace(/💘/g, ' heart with arrow ')
+        .replace(/💝/g, ' heart with ribbon ')
+        .replace(/💞/g, ' revolving hearts ')
+        .replace(/💟/g, ' heart decoration ')
+        .replace(/❣️/g, ' heart exclamation ')
+        .replace(/💔/g, ' broken heart ')
+        .replace(/❤️‍🔥/g, ' heart on fire ')
+        .replace(/❤️‍🩹/g, ' mending heart ')
+        .replace(/♥️/g, ' heart suit ')
+        .replace(/🫶/g, ' heart hands ')
+        .replace(/👍/g, ' thumbs up ')
+        .replace(/👎/g, ' thumbs down ')
+        .replace(/👏/g, ' clapping hands ')
+        .replace(/🤝/g, ' handshake ')
+        .replace(/💪/g, ' flexed biceps ')
+        .replace(/🔥/g, ' fire ')
+        .replace(/⭐/g, ' star ')
+        .replace(/🎉/g, ' party popper ')
+        .replace(/🎊/g, ' confetti ball ')
+        .replace(/🌈/g, ' rainbow ')
+        .replace(/☀️/g, ' sun ')
+        .replace(/🌙/g, ' crescent moon ')
+        .replace(/⚡/g, ' lightning ')
+        .replace(/💫/g, ' dizzy star ')
+        .replace(/🌸/g, ' cherry blossom ')
+        .replace(/🌺/g, ' hibiscus ')
+        .replace(/🌻/g, ' sunflower ')
+        .replace(/🌷/g, ' tulip ')
+        .replace(/🌹/g, ' rose ')
+        .replace(/🥀/g, ' wilted flower ')
+        .replace(/🦋/g, ' butterfly ')
+        .replace(/🐝/g, ' bee ')
+        .replace(/🌿/g, ' herb ')
+        .replace(/🍀/g, ' four leaf clover ')
+        .replace(/🌳/g, ' deciduous tree ')
+        .replace(/🌲/g, ' evergreen tree ')
+        .replace(/🏔️/g, ' snow capped mountain ')
+        .replace(/🌊/g, ' water wave ')
+        .replace(/💧/g, ' droplet ')
+        .replace(/☔/g, ' umbrella with rain drops ')
+        .replace(/⛅/g, ' sun behind cloud ')
+        .replace(/🌤️/g, ' sun behind small cloud ')
+        .replace(/⛈️/g, ' cloud with lightning and rain ')
+        .replace(/🌩️/g, ' cloud with lightning ')
+        .replace(/❄️/g, ' snowflake ')
+        .replace(/☃️/g, ' snowman ')
+        .replace(/⛄/g, ' snowman without snow ')
+        .replace(/🌬️/g, ' wind face ')
+        .replace(/💨/g, ' dashing away ')
+        .replace(/🌪️/g, ' tornado ')
+        .replace(/🌀/g, ' cyclone ');
+      
+      const utterance = new SpeechSynthesisUtterance(cleanText);
       const voices = window.speechSynthesis.getVoices();
-      const chosen = voices.find(v => v.name === selectedVoice) || 
-                    voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('female')) ||
-                    voices.find(v => v.lang.startsWith('en-'));
+      
+      // Mobile-optimized voice selection
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      let chosen;
+      
+      if (isMobile) {
+        // For mobile, prefer system voices
+        chosen = voices.find(v => v.name === selectedVoice) || 
+                 voices.find(v => v.localService && v.lang.startsWith('en-')) ||
+                 voices.find(v => v.lang.startsWith('en-') && 
+                   (v.name.toLowerCase().includes('google') || 
+                    v.name.toLowerCase().includes('samsung') ||
+                    v.name.toLowerCase().includes('default'))) ||
+                 voices.find(v => v.lang.startsWith('en-'));
+      } else {
+        // Desktop voice selection
+        chosen = voices.find(v => v.name === selectedVoice) || 
+                 voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('female')) ||
+                 voices.find(v => v.lang.startsWith('en-'));
+      }
       
       if (chosen) utterance.voice = chosen;
-      utterance.pitch = 1.1;
-      utterance.rate = 0.9;
+      
+      // Mobile-optimized settings
+      utterance.pitch = isMobile ? 1.0 : 1.1;
+      utterance.rate = isMobile ? 0.8 : 0.9;
       utterance.volume = 0.8;
+      
+      // Add error handling for mobile
+      utterance.onerror = (event) => {
+        console.log('Speech synthesis error:', event.error);
+      };
       
       window.speechSynthesis.speak(utterance);
     } catch (error) {
@@ -406,9 +557,13 @@ export default function MainChat({ user, onLogout }: {
     const recognition = new SpeechRecognition()
     recognitionRef.current = recognition;
 
+    // Mobile-optimized settings
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     recognition.lang = 'en-US'
-    recognition.interimResults = true
-    recognition.continuous = true
+    recognition.interimResults = !isMobile // Disable interim results on mobile for better performance
+    recognition.continuous = !isMobile // Disable continuous on mobile
+    recognition.maxAlternatives = 1
 
     recognition.onstart = () => {
       setIsMicActive(true)
@@ -420,10 +575,19 @@ export default function MainChat({ user, onLogout }: {
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
           finalTranscript += event.results[i][0].transcript;
+        } else if (!isMobile) {
+          // Only use interim results on desktop
+          finalTranscript += event.results[i][0].transcript;
         }
       }
       if (finalTranscript) {
-        setInput(prev => prev + finalTranscript);
+        if (isMobile) {
+          // On mobile, replace the input completely
+          setInput(finalTranscript);
+        } else {
+          // On desktop, append to existing input
+          setInput(prev => prev + finalTranscript);
+        }
       }
     };
 
@@ -432,10 +596,13 @@ export default function MainChat({ user, onLogout }: {
     };
 
     recognition.onerror = (event: any) => {
+      console.log('Speech recognition error:', event.error);
       if (event.error === 'not-allowed' || event.error === 'denied') {
         setMicError('Microphone permission denied. Please allow mic access.')
       } else if (event.error === 'no-speech') {
         setMicError("I didn't hear anything. Please try again.")
+      } else if (event.error === 'network') {
+        setMicError('Network error. Check your connection.')
       } else {
         setMicError('Voice input error. Try again.')
       }
@@ -443,15 +610,32 @@ export default function MainChat({ user, onLogout }: {
     
     recognition.onend = () => {
       setIsMicActive(false);
-      setTimeout(() => {
-        const currentInput = (document.querySelector('input[placeholder="Type what\'s on your mind..."]') as HTMLInputElement)?.value;
-        if (currentInput && currentInput.trim().length > 0) {
-          handleSend({ text: currentInput, fromVoice: true });
-        }
-      }, 100);
+      if (isMobile) {
+        // On mobile, immediately send if there's input
+        setTimeout(() => {
+          const currentInput = (document.querySelector('input[placeholder="Type what\'s on your mind..."]') as HTMLInputElement)?.value;
+          if (currentInput && currentInput.trim().length > 0) {
+            handleSend({ text: currentInput, fromVoice: true });
+          }
+        }, 100);
+      } else {
+        // Desktop behavior (existing)
+        setTimeout(() => {
+          const currentInput = (document.querySelector('input[placeholder="Type what\'s on your mind..."]') as HTMLInputElement)?.value;
+          if (currentInput && currentInput.trim().length > 0) {
+            handleSend({ text: currentInput, fromVoice: true });
+          }
+        }, 100);
+      }
     };
 
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (error) {
+      console.error('Failed to start speech recognition:', error);
+      setMicError('Could not start voice input. Try again.');
+      setIsMicActive(false);
+    }
   };
 
   useEffect(() => {
@@ -644,10 +828,18 @@ export default function MainChat({ user, onLogout }: {
                         : 'bg-transparent hover:bg-[#2A2F3A] text-gray-400 hover:text-white'
                     }`}
                     aria-label={isMicActive ? "Stop voice input" : "Start voice input"}
+                    title={isMobile ? (isMicActive ? "🎙️ Listening..." : "🎙️ Tap to speak") : (isMicActive ? "Stop voice input" : "Start voice input")}
                   >
                     <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
                     {isMicActive && (
-                      <span className="absolute inset-0 rounded-full border-2 border-amber-500 animate-ping" />
+                      <>
+                        <span className="absolute inset-0 rounded-full border-2 border-amber-500 animate-ping" />
+                        {isMobile && (
+                          <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-amber-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
+                            Listening...
+                          </span>
+                        )}
+                      </>
                     )}
                   </Button>
                   <Button
@@ -675,22 +867,32 @@ export default function MainChat({ user, onLogout }: {
                       className="scale-70"
                     />
                   </div>
-                  {(isVoiceEnabled || wasLastInputVoice.current) && (
+                  {(isVoiceEnabled || wasLastInputVoice.current) && !isMobile && (
                     availableVoices.length > 0 ? (
                       <select
-                        className="bg-[#2A2F3A] text-white border border-[#7c3aed] rounded px-1 py-1 text-xs max-w-[110px] sm:max-w-none truncate"
+                        className="bg-[#2A2F3A] text-white border border-[#7c3aed] rounded px-2 py-1 text-xs max-w-[120px] sm:max-w-[180px] truncate focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
                         value={selectedVoice}
                         onChange={e => setSelectedVoice(e.target.value)}
+                        style={{ 
+                          WebkitAppearance: 'none',
+                          MozAppearance: 'none',
+                          appearance: 'none'
+                        }}
                       >
                         {availableVoices.map(v => (
-                          <option key={v.name} value={v.name}>
-                            {v.name}
+                          <option key={v.name} value={v.name} className="bg-[#2A2F3A] text-white">
+                            {v.name.length > 15 ? v.name.substring(0, 15) + '...' : v.name}
                           </option>
                         ))}
                       </select>
                     ) : (
                       <span className="text-gray-400 text-xs">Loading voices…</span>
                     )
+                  )}
+                  {isMobile && (isVoiceEnabled || wasLastInputVoice.current) && (
+                    <span className="text-purple-400 text-xs">
+                      🎵 {selectedVoice ? 'Voice Ready' : 'Setting up...'}
+                    </span>
                   )}
                   <div className="text-xs text-gray-400 ml-auto sm:ml-0 flex items-center">
                     <span className="mr-1">Messages: {messages.length}</span>
@@ -702,7 +904,15 @@ export default function MainChat({ user, onLogout }: {
                 </div>
               </div>
               {micError && (
-                <div className="mt-1 text-[#f85149] text-xs text-center">{micError}</div>
+                <div className="mt-1 text-[#f85149] text-xs text-center">
+                  {isMobile ? (
+                    micError.includes('permission') ? 
+                      '🎙️ Please allow microphone access in browser settings' :
+                    micError.includes('network') ?
+                      '📶 Check your internet connection' :
+                      '🎙️ Voice input failed - try again'
+                  ) : micError}
+                </div>
               )}
             </div>
           </div>
