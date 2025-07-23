@@ -420,8 +420,8 @@ export default function MainChat({ user, onLogout }: {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-1 sm:gap-3">
             <img src="/fedup-logo.png" alt="FED UP" className="w-7 h-7 sm:w-10 sm:h-10" />
-            <h1 className="text-base sm:text-xl font-semibold bg-gradient-to-r from-[#7c3aed] to-[#ec4899] text-transparent bg-clip-text">
-              FED UP<span className="hidden sm:inline"> Chat</span>
+            <h1 className="hidden sm:block text-xl font-semibold bg-gradient-to-r from-[#7c3aed] to-[#ec4899] text-transparent bg-clip-text">
+              FED UP Chat
             </h1>
           </div>
           
