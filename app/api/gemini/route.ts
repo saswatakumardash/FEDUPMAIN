@@ -4,7 +4,7 @@ import { generateDemoResponse } from '@/lib/gemini-demo';
 
 export async function POST(req: NextRequest) {
   // Set CORS headers
-  const allowedOrigins = ['https://fedupmain.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://fedupmain.vercel.app', 'http://localhost:3000', 'https://fedup.skds.site'];
   const origin = req.headers.get('origin') || '';
   const headers = {
     'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
@@ -24,13 +24,13 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // Build conversation history for Gemini
-      const response = await generateDemoResponse(message);
+      // Build conversation history for Gemini - using full generateResponse for main chat
+      const response = await generateResponse(message, conversationHistory || []);
       return NextResponse.json({ response }, { headers });
     } catch (error) {
       console.error('Gemini Error:', error);
       return NextResponse.json({ 
-        response: "Hey, I'm here for you. What's going on?"
+        response: "I'm here for you - always. What's been going on lately? Maybe I can help brainstorm some solutions."
       }, { headers });
     }
   } catch (error) {

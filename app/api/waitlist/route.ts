@@ -4,7 +4,7 @@ import { collection, addDoc, query, where, getDocs } from 'firebase/firestore';
 
 export async function POST(req: NextRequest) {
   // Set CORS headers
-  const allowedOrigins = ['https://fedupmain.vercel.app', 'http://localhost:3000'];
+  const allowedOrigins = ['https://fedupmain.vercel.app', 'http://localhost:3000', 'https://fedup.skds.site'];
   const origin = req.headers.get('origin') || '';
   const headers = {
     'Access-Control-Allow-Origin': allowedOrigins.includes(origin) ? origin : allowedOrigins[0],
