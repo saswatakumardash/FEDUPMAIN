@@ -69,6 +69,7 @@ export default function MainChat({ user, onLogout }: {
   const [isMicActive, setIsMicActive] = useState(false)
   const [micError, setMicError] = useState<string | null>(null)
   const [isMicSupported, setIsMicSupported] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const recognitionRef = useRef<any>(null)
   const wasLastInputVoice = useRef(false)
   const [selectedVoice, setSelectedVoice] = useState<string>("")
@@ -77,30 +78,50 @@ export default function MainChat({ user, onLogout }: {
   const [voiceUserTurns, setVoiceUserTurns] = useState(0)
   const [showSettings, setShowSettings] = useState(false)
 
-  // Create user-specific storage key
-  const CHAT_STORAGE_KEY = `fedup-main-chat-${user.uid}`
+  // Create user-specific storage keys
+  const CHAT_STATS_KEY = `fedup-chat-stats-${user.uid}`
+  const CHAT_MESSAGES_KEY = `fedup-chat-messages-${user.uid}`
 
-  // Load turn counts from localStorage
+  // Load messages and stats from localStorage
   useEffect(() => {
     if (typeof window === "undefined" || !user) return
-    const saved = localStorage.getItem(CHAT_STORAGE_KEY)
-    if (saved) {
+    
+    // Load chat stats (turns count)
+    const savedStats = localStorage.getItem(CHAT_STATS_KEY)
+    if (savedStats) {
       try {
-        const parsed = JSON.parse(saved)
+        const parsed = JSON.parse(savedStats)
         setUserTurns(parsed.userTurns || 0)
         setVoiceUserTurns(parsed.voiceUserTurns || 0)
       } catch {}
     }
-  }, [user, CHAT_STORAGE_KEY])
+    
+    // Load chat messages
+    const savedMessages = localStorage.getItem(CHAT_MESSAGES_KEY)
+    if (savedMessages) {
+      try {
+        const parsedMessages = JSON.parse(savedMessages)
+        setMessages(parsedMessages || [])
+      } catch (error) {
+        console.error("Error loading chat messages:", error)
+      }
+    }
+  }, [user, CHAT_STATS_KEY, CHAT_MESSAGES_KEY])
 
-  // Save turn counts to localStorage
+  // Save turns count to localStorage
   useEffect(() => {
     if (typeof window === "undefined" || !user) return
     localStorage.setItem(
-      CHAT_STORAGE_KEY,
+      CHAT_STATS_KEY,
       JSON.stringify({ userTurns, voiceUserTurns })
     )
-  }, [userTurns, voiceUserTurns, user, CHAT_STORAGE_KEY])
+  }, [userTurns, voiceUserTurns, user, CHAT_STATS_KEY])
+  
+  // Save messages to localStorage
+  useEffect(() => {
+    if (typeof window === "undefined" || !user || messages.length === 0) return
+    localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(messages))
+  }, [messages, user, CHAT_MESSAGES_KEY])
 
   // Show loading screen on mount
   useEffect(() => {
@@ -108,18 +129,21 @@ export default function MainChat({ user, onLogout }: {
     return () => clearTimeout(timer)
   }, [])
 
-  // Close settings menu when clicking outside
+  // Close any dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element
       if (showSettings && !target.closest('.settings-button') && !target.closest('.settings-menu')) {
         setShowSettings(false)
       }
+      if (showDeleteConfirm && !target.closest('.delete-button') && !target.closest('.delete-menu')) {
+        setShowDeleteConfirm(false)
+      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showSettings])
+  }, [showSettings, showDeleteConfirm])
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -208,6 +232,25 @@ export default function MainChat({ user, onLogout }: {
 
   const handleSendClick = () => {
     handleSend({ fromVoice: false });
+  }
+  
+  // Function to delete chat history
+  const deleteChat = () => {
+    if (typeof window === "undefined" || !user) return
+    
+    // Clear messages from state
+    setMessages([])
+    
+    // Clear from localStorage
+    localStorage.removeItem(CHAT_MESSAGES_KEY)
+    
+    // Reset stats but keep track of them in localStorage
+    localStorage.setItem(CHAT_STATS_KEY, JSON.stringify({ userTurns: 0, voiceUserTurns: 0 }))
+    setUserTurns(0)
+    setVoiceUserTurns(0)
+    
+    // Close the confirm dialog
+    setShowDeleteConfirm(false)
   }
 
   const handleSend = async (options?: { text?: string, fromVoice?: boolean }) => {
@@ -393,38 +436,48 @@ export default function MainChat({ user, onLogout }: {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-gray-400 hover:text-white settings-button h-8 w-8 sm:h-10 sm:w-10"
-                onClick={() => setShowSettings(!showSettings)}
+                className="text-gray-400 hover:text-red-400 delete-button h-8 w-8 sm:h-10 sm:w-10"
+                onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+                title="Delete chat history"
               >
-                <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  className="w-4 h-4 sm:w-5 sm:h-5"
+                >
+                  <path d="M3 6h18"></path>
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                </svg>
               </Button>
-              {showSettings && (
-                <div className="settings-menu absolute right-0 mt-2 w-64 sm:w-64 rounded-lg bg-[#1E2128] border border-[#2A2F3A] shadow-lg z-50">
-                  <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-300">Voice Responses</span>
-                      <Switch
-                        checked={isVoiceEnabled}
-                        onCheckedChange={setIsVoiceEnabled}
-                        className="scale-75"
-                      />
+              {showDeleteConfirm && (
+                <div className="delete-menu absolute right-0 mt-2 w-64 sm:w-64 rounded-lg bg-[#1E2128] border border-[#2A2F3A] shadow-lg z-50">
+                  <div className="p-3 sm:p-4 space-y-3">
+                    <h4 className="text-sm font-medium text-white">Delete chat history?</h4>
+                    <p className="text-xs text-gray-400">This will permanently delete all messages in this conversation.</p>
+                    <div className="flex justify-between gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-gray-400 hover:text-white bg-transparent border-gray-700 hover:bg-gray-800 flex-1"
+                        onClick={() => setShowDeleteConfirm(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="bg-red-600 hover:bg-red-700 text-white flex-1"
+                        onClick={deleteChat}
+                      >
+                        Delete
+                      </Button>
                     </div>
-                    {(isVoiceEnabled || wasLastInputVoice.current) && (
-                      <div className="space-y-2">
-                        <label className="text-xs text-gray-400">Voice Selection</label>
-                        <select
-                          className="w-full bg-[#2A2F3A] text-white border border-[#7c3aed] rounded px-2 py-1 text-xs"
-                          value={selectedVoice}
-                          onChange={e => setSelectedVoice(e.target.value)}
-                        >
-                          {availableVoices.map(v => (
-                            <option key={v.name} value={v.name}>
-                              {v.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
@@ -578,8 +631,12 @@ export default function MainChat({ user, onLogout }: {
                       <span className="text-gray-400 text-xs">Loading voices…</span>
                     )
                   )}
-                  <div className="text-xs text-gray-400 ml-auto sm:ml-0">
-                    <span>💬 {100 - userTurns} | 🎙 {80 - voiceUserTurns}</span>
+                  <div className="text-xs text-gray-400 ml-auto sm:ml-0 flex items-center">
+                    <span className="mr-1">Messages: {messages.length}</span>
+                    <span>•</span>
+                    <span className="mx-1">💬 {100 - userTurns}</span>
+                    <span>•</span>
+                    <span className="ml-1">🎙 {80 - voiceUserTurns}</span>
                   </div>
                 </div>
               </div>
