@@ -10,6 +10,9 @@ import { GoogleAuthProvider, signInWithPopup } from "firebase/auth"
 import { Sparkles, Mail, User } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
+import sha256 from 'crypto-js/sha256';
+import Base64 from 'crypto-js/enc-base64';
+import * as React from 'react';
 
 interface Message {
   id: number
@@ -26,18 +29,15 @@ interface UserData {
 }
 
 // Generate a unique device identifier for demo limits
-const getDeviceId = () => {
+const getDeviceId = (): string => {
   if (typeof window === "undefined") return "server";
-  
   let deviceId = localStorage.getItem("fedup-device-id");
   if (!deviceId) {
-    // Create unique device ID using multiple browser properties
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     ctx!.textBaseline = 'top';
     ctx!.font = '14px Arial';
     ctx!.fillText('Device fingerprint', 2, 2);
-    
     const fingerprint = [
       navigator.userAgent,
       navigator.language,
@@ -45,15 +45,25 @@ const getDeviceId = () => {
       new Date().getTimezoneOffset(),
       canvas.toDataURL()
     ].join('|');
-    
     deviceId = btoa(fingerprint).slice(0, 32);
     localStorage.setItem("fedup-device-id", deviceId);
   }
   return deviceId;
 };
 
-const CHAT_STORAGE_KEY = `fedup-chat-demo-global-${getDeviceId()}`
-const CHAT_LIMIT = 5
+// Obfuscated key (base64 of a string + deviceId)
+function getObfuscatedKey(deviceId: string) {
+  return Base64.stringify(sha256('fedup-demo-key-' + deviceId)).slice(0, 32);
+}
+
+// Generate a signature for the stored data
+function getSignature(data: any, secret: string) {
+  return Base64.stringify(sha256(JSON.stringify(data) + secret));
+}
+
+const SECRET = 'fedup-demo-secret-2024'; // Hardcoded secret for signature
+
+const CHAT_LIMIT = 5;
 
 export default function ChatDemo() {
   const [messages, setMessages] = useState<Message[]>([])
@@ -70,33 +80,51 @@ export default function ChatDemo() {
   const wasLastInputVoice = useRef(false)
   const [selectedVoice, setSelectedVoice] = useState<string>("")
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [tampered, setTampered] = useState(false);
+  // Add a state for voice input support
+  const [isVoiceInputSupported, setIsVoiceInputSupported] = useState(false);
 
   // Load from localStorage on mount with device-specific demo key
   useEffect(() => {
-    if (typeof window === "undefined") return
-    const storageKey = `fedup-chat-demo-global-${getDeviceId()}`;
-    const saved = localStorage.getItem(storageKey)
+    if (typeof window === "undefined") return;
+    const deviceId = getDeviceId();
+    const storageKey = getObfuscatedKey(deviceId);
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
-        const parsed = JSON.parse(saved)
-        setMessages(parsed.messages || [])
-        setIsLocked(!!parsed.isLocked)
-      } catch {}
+        const parsed = JSON.parse(atob(saved));
+        const { messages, isLocked, signature } = parsed;
+        const expectedSig = getSignature({ messages, isLocked }, SECRET);
+        if (signature !== expectedSig) {
+          setTampered(true);
+          setIsLocked(true);
+          setMessages([]);
+          return;
+        }
+        setMessages(messages || []);
+        setIsLocked(!!isLocked);
+      } catch {
+        setTampered(true);
+        setIsLocked(true);
+        setMessages([]);
+      }
     }
-  }, [])
+  }, []);
 
   // Save to localStorage on every update with device-specific demo key
   useEffect(() => {
-    if (typeof window === "undefined") return
-    const storageKey = `fedup-chat-demo-global-${getDeviceId()}`;
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify({ messages, isLocked })
-    )
-  }, [messages, isLocked])
+    if (typeof window === "undefined") return;
+    if (tampered) return;
+    const deviceId = getDeviceId();
+    const storageKey = getObfuscatedKey(deviceId);
+    const data = { messages, isLocked };
+    const signature = getSignature(data, SECRET);
+    const toStore = btoa(JSON.stringify({ ...data, signature }));
+    localStorage.setItem(storageKey, toStore);
+  }, [messages, isLocked, tampered]);
 
   // Count user turns
-  const userTurns = messages.filter((m) => m.isUser).length
+  const userTurns = messages.filter((m: Message) => m.isUser).length
 
   // Wrapper for button onClick to avoid passing event object
   const handleSendClick = () => {
@@ -141,7 +169,7 @@ export default function ChatDemo() {
         isUser: false,
       }
 
-      setMessages((prev) => [...prev, aiResponse])
+      setMessages((prev: Message[]) => [...prev, aiResponse]);
 
       if (isVoiceOutputOn || wasLastInputVoice.current) {
         speak(aiResponseText);
@@ -149,7 +177,7 @@ export default function ChatDemo() {
 
       // Lock after 3 user turns
       if (userTurns + 1 >= CHAT_LIMIT) {
-        setTimeout(() => setIsLocked(true), 1200)
+        setTimeout(() => setIsLocked(true), 1200);
       }
     } catch (error) {
       const aiResponse: Message = {
@@ -157,7 +185,7 @@ export default function ChatDemo() {
         text: "Hey, I'm here for you. What's going on?",
         isUser: false,
       }
-      setMessages((prev) => [...prev, aiResponse])
+      setMessages((prev: Message[]) => [...prev, aiResponse]);
     } finally {
       setIsLoading(false)
     }
@@ -226,15 +254,16 @@ export default function ChatDemo() {
     }
   }, [isVoiceOutputOn])
 
+  // For voice output, always use the best available voice
   const speak = (text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const utterance = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    const chosen = voices.find(v => v.name === selectedVoice) || voices.find(v => v.lang.startsWith('en'));
-    if (chosen) utterance.voice = chosen;
-    utterance.pitch = 1.1;
-    utterance.rate = 1;
-    window.speechSynthesis.speak(utterance);
+    const synth = window.speechSynthesis;
+    let voices = synth.getVoices();
+    let voice = voices.find(v => v.name === selectedVoice) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+    if (!voice) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.voice = voice;
+    synth.speak(utter);
   };
 
   const handleMicClick = () => {
@@ -432,6 +461,11 @@ export default function ChatDemo() {
                 </motion.div>
                 </motion.div>
               )}
+            {tampered && (
+              <div className="text-red-500 text-center font-bold mt-4">
+                Demo locked due to tampering. Please use a different browser/device.
+              </div>
+            )}
             {/* Controls: Input & Voice Toggle */}
             {!isLocked && (
               <div className="mt-4">
@@ -500,6 +534,25 @@ export default function ChatDemo() {
                     )
                   )}
                 </div>
+                <div className="flex items-center gap-2 mt-2">
+                  <label htmlFor="voice-select" className="text-sm text-gray-300">Voice:</label>
+                  <select
+                    id="voice-select"
+                    className="bg-gray-800 text-white rounded px-2 py-1"
+                    value={selectedVoice}
+                    onChange={e => setSelectedVoice(e.target.value)}
+                  >
+                    {availableVoices.map((voice) => (
+                      <option key={voice.name} value={voice.name}>
+                        {voice.name.toLowerCase().includes('female') || voice.name.toLowerCase().includes('samantha')
+                          ? `${voice.name} (Default Female)`
+                          : voice.name.toLowerCase().includes('male') || voice.name.toLowerCase().includes('daniel')
+                            ? `${voice.name} (Best Male)`
+                            : voice.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
           </div>
@@ -521,6 +574,11 @@ export default function ChatDemo() {
           )}
         </div>
       </div>
+      {!isVoiceInputSupported && (
+        <div className="text-yellow-400 text-xs text-center font-medium mb-1">
+          If Voice input not supported in this browser. Try Chrome, Samsung Internet, or Safari.
+        </div>
+      )}
     </section>
   )
 }

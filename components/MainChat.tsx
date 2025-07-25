@@ -11,6 +11,21 @@ import LoadingTransition from "./LoadingTransition"
 import EmotionalBackground from "./EmotionalBackground"
 import EmojiGlobe from "./EmojiGlobe"
 import BackgroundAnimation from "./BackgroundAnimation"
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  addDoc,
+  deleteDoc,
+  deleteField,
+  updateDoc,
+  query,
+  orderBy,
+  onSnapshot
+} from "firebase/firestore";
 
 // TypeWriter component for animated text
 function TypeWriter({ text }: { text: string }) {
@@ -78,6 +93,9 @@ export default function MainChat({ user, onLogout }: {
   const [voiceUserTurns, setVoiceUserTurns] = useState(0)
   const [showSettings, setShowSettings] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  // 1. WhatsApp-style hold-to-record mic button
+  // Add state for recording
+  const [isRecording, setIsRecording] = useState(false);
 
   // Detect mobile device
   useEffect(() => {
@@ -136,65 +154,167 @@ export default function MainChat({ user, onLogout }: {
     localStorage.setItem(`fedup-last-active-${user.uid}`, now.toString())
   }
 
-  // Load messages and stats from localStorage
+  // On load, fetch messages and turn counts from Firestore
   useEffect(() => {
-    if (typeof window === "undefined" || !user) return
-    
-    // Load chat stats (turns count)
-    const savedStats = localStorage.getItem(CHAT_STATS_KEY)
-    if (savedStats) {
+    if (!user || !db) return;
+    const dbInstance = db as import('firebase/firestore').Firestore;
+    const fetchData = async () => {
+      setShowLoading(true);
       try {
-        const parsed = JSON.parse(savedStats)
-        setUserTurns(parsed.userTurns || 0)
-        setVoiceUserTurns(parsed.voiceUserTurns || 0)
-      } catch {}
-    }
-    
-    // Check if this is a fresh session (login, reload, or revisit)
-    const sessionKey = `fedup-session-${user.uid}`
-    const currentSession = sessionStorage.getItem(sessionKey)
-    
-    if (!currentSession) {
-      // Fresh session - always show welcome message
-      sessionStorage.setItem(sessionKey, Date.now().toString())
-      addWelcomeMessage()
-    } else {
-      // Load existing chat messages
-      const savedMessages = localStorage.getItem(CHAT_MESSAGES_KEY)
-      if (savedMessages) {
-        try {
-          const parsedMessages = JSON.parse(savedMessages)
-          if (parsedMessages && parsedMessages.length > 0) {
-            setMessages(parsedMessages)
-          } else {
-            // No existing messages, show welcome
-            addWelcomeMessage()
-          }
-        } catch (error) {
-          console.error("Error loading chat messages:", error)
-          addWelcomeMessage()
+        // Fetch turn counts
+        const userDoc = await getDoc(doc(dbInstance, "userStats", user.uid));
+        if (userDoc.exists()) {
+          const data = userDoc.data();
+          setUserTurns(data.userTurns || 0);
+          setVoiceUserTurns(data.voiceUserTurns || 0);
+        } else {
+          setUserTurns(0);
+          setVoiceUserTurns(0);
         }
-      } else {
-        // No saved messages, show welcome
-        addWelcomeMessage()
+        // Fetch messages
+        const chatsRef = collection(dbInstance, "userChats", user.uid, "messages");
+        const q = query(chatsRef, orderBy("id", "asc"));
+        const chatSnap = await getDocs(q);
+        const msgs = chatSnap.docs.map(doc => doc.data() as Message);
+        setMessages(msgs);
+        if (msgs.length === 0) {
+          addWelcomeMessage();
+        }
+      } catch (e) {
+        setMessages([]);
+        setUserTurns(0);
+        setVoiceUserTurns(0);
+      } finally {
+        setShowLoading(false);
       }
-    }
-  }, [user, CHAT_STATS_KEY, CHAT_MESSAGES_KEY])
+    };
+    fetchData();
+  }, [user, db]);
 
-  // Save turns count to localStorage
+  // Real-time Firestore listener for messages
   useEffect(() => {
-    if (typeof window === "undefined" || !user) return
-    localStorage.setItem(
-      CHAT_STATS_KEY,
-      JSON.stringify({ userTurns, voiceUserTurns })
-    )
-  }, [userTurns, voiceUserTurns, user, CHAT_STATS_KEY])
-  
-  // Save messages to localStorage
-  useEffect(() => {
-    if (typeof window === "undefined" || !user || messages.length === 0) return
-    localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(messages))
-  }, [messages, user, CHAT_MESSAGES_KEY])
+    if (!user || !db) return;
+    const dbInstance = db as import('firebase/firestore').Firestore;
+    const chatsRef = collection(dbInstance, "userChats", user.uid, "messages");
+    const q = query(chatsRef, orderBy("id", "asc"));
+    const unsubscribe = onSnapshot(q, (chatSnap) => {
+      const msgs = chatSnap.docs.map(doc => doc.data() as Message);
+      setMessages(msgs);
+      if (msgs.length === 0) {
+        addWelcomeMessage();
+      }
+    }, (error) => {
+      setMessages([]);
+    });
+    return () => unsubscribe();
+  }, [user, db]);
+
+  // Refactor handleSend for robust Firestore and API flow
+  const handleSend = async (options?: { text?: string, fromVoice?: boolean }) => {
+    const textToSend = options?.text || input;
+    const inputIsFromVoice = options?.fromVoice || false;
+    if (!textToSend.trim() || isSending) return;
+    if (!user || !db) return;
+    setIsSending(true);
+    try {
+      const dbInstance = db as import('firebase/firestore').Firestore;
+      // Get current turn counts from Firestore
+      const userDocRef = doc(dbInstance, "userStats", user.uid);
+      const userDoc = await getDoc(userDocRef);
+      let newUserTurns = userTurns + 1;
+      let newVoiceUserTurns = inputIsFromVoice ? voiceUserTurns + 1 : voiceUserTurns;
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        newUserTurns = (data.userTurns || 0) + 1;
+        newVoiceUserTurns = inputIsFromVoice ? (data.voiceUserTurns || 0) + 1 : (data.voiceUserTurns || 0);
+      }
+      // Check limits
+      if (user.provider === "google") {
+        if (newUserTurns > 100) {
+          setIsSending(false);
+          return;
+        }
+        if (inputIsFromVoice && newVoiceUserTurns > 80) {
+          setIsSending(false);
+          return;
+        }
+      }
+      // Update counters in Firestore
+      await setDoc(userDocRef, {
+        userTurns: newUserTurns,
+        voiceUserTurns: newVoiceUserTurns
+      }, { merge: true });
+      setUserTurns(newUserTurns);
+      if (inputIsFromVoice) setVoiceUserTurns(newVoiceUserTurns);
+      // Add user message to Firestore and UI
+      const userMessage: Message = {
+        id: Date.now(),
+        text: textToSend,
+        isUser: true,
+      };
+      await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), userMessage);
+      setInput("");
+      // Fetch AI response
+      const conversationHistory = [...messages, userMessage].map((m) => `${m.isUser ? "User" : "FED UP"}: ${m.text}`);
+      let aiResponseText = "Hey, I'm here for you. What's going on?";
+      try {
+        const res = await fetch("/api/gemini", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Type": "main-chat"
+          },
+          body: JSON.stringify({ message: textToSend, conversationHistory }),
+        });
+        const data = await res.json();
+        aiResponseText = data.response || aiResponseText;
+      } catch (error) {
+        // Optionally show error UI
+      }
+      const aiResponse: Message = {
+        id: Date.now() + 1,
+        text: aiResponseText,
+        isUser: false,
+      };
+      await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), aiResponse);
+      if (isVoiceEnabled || wasLastInputVoice.current || inputIsFromVoice) {
+        speak(aiResponseText);
+      }
+    } catch (error) {
+      // Optionally show error UI
+    } finally {
+      setIsSending(false);
+      sessionStorage.setItem('lastActiveTime', Date.now().toString());
+    }
+  };
+
+  // On delete, remove all chat data and reset turn counts in Firestore
+  const handleDeleteAll = async () => {
+    if (!user || !db) return;
+    const dbInstance = db as import('firebase/firestore').Firestore;
+    setShowLoading(true);
+    try {
+      // Delete all chat messages
+      const chatsRef = collection(dbInstance, "userChats", user.uid, "messages");
+      const chatSnap = await getDocs(chatsRef);
+      for (const docu of chatSnap.docs) {
+        await deleteDoc(docu.ref);
+      }
+      // Reset turn counts
+      await setDoc(doc(dbInstance, "userStats", user.uid), {
+        userTurns: 0,
+        voiceUserTurns: 0
+      }, { merge: true });
+      setMessages([]);
+      setUserTurns(0);
+      setVoiceUserTurns(0);
+      addWelcomeMessage();
+    } catch (e) {
+      // Optionally show error
+    } finally {
+      setShowLoading(false);
+    }
+  };
 
   // Close any dropdown when clicking outside
   useEffect(() => {
@@ -217,88 +337,185 @@ export default function MainChat({ user, onLogout }: {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  // Initialize speech features
+  // Initialize speech features - Chrome & Samsung Internet friendly
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // Check if mobile device
-    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // Setup Speech Recognition (more mobile-friendly)
+    // Setup Speech Recognition - Chrome compatible
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
       setIsMicSupported(true);
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'en-US';
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      
-      // Mobile-specific settings
-      if (isMobile) {
-        recognition.maxAlternatives = 1;
-      }
-      
-      recognitionRef.current = recognition;
     }
 
-    // Setup Speech Synthesis (improved mobile support)
+    // Setup Speech Synthesis - Chrome & Samsung Internet compatible
     if (window.speechSynthesis) {
       const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
         
-        // Filter voices for mobile compatibility
-        let englishVoices = voices.filter(voice => 
-          voice.lang.startsWith('en-') && 
-          !voice.name.toLowerCase().includes('zira') &&
-          !voice.name.toLowerCase().includes('microsoft')
+        if (voices.length === 0) return; // Wait for voices to load
+        
+        // Filter for English voices with priority for female voices - including Microsoft
+        const allEnglishVoices = voices.filter(voice => 
+          voice.lang.startsWith('en')
         );
         
-        // For mobile, prefer system voices
-        if (isMobile) {
-          englishVoices = englishVoices.filter(voice => 
-            voice.localService || 
-            voice.name.toLowerCase().includes('google') ||
-            voice.name.toLowerCase().includes('samsung') ||
-            voice.name.toLowerCase().includes('default')
-          );
-        }
+        // Prioritize female voices and sort them - more inclusive filtering
+        const femaleVoices = allEnglishVoices.filter(voice => {
+          const name = voice.name.toLowerCase();
+          const isNotMaleVoice = !name.includes('david') && 
+                                !name.includes('mark') && 
+                                !name.includes('daniel') && 
+                                !name.includes('tom') && 
+                                !name.includes('paul') && 
+                                !name.includes('james') && 
+                                !name.includes('richard');
+          
+          const isFemaleVoice = name.includes('female') || 
+                               name.includes('woman') ||
+                               name.includes('samantha') ||
+                               name.includes('karen') ||
+                               name.includes('moira') ||
+                               name.includes('tessa') ||
+                               name.includes('alex') ||
+                               name.includes('allison') ||
+                               name.includes('ava') ||
+                               name.includes('serena') ||
+                               name.includes('aria') ||
+                               name.includes('emma') ||
+                               name.includes('jenny') ||
+                               name.includes('google us') ||
+                               name.includes('google uk') ||
+                               name.includes('samsung') ||
+                               name.includes('vicki') ||
+                               name.includes('princess') ||
+                               name.includes('victoria') ||
+                               name.includes('eva') ||
+                               name.includes('hazel') ||
+                               name.includes('cortana') ||
+                               name.includes('helena') ||
+                               name.includes('julie') ||
+                               name.includes('michelle') ||
+                               name.includes('susan') ||
+                               name.includes('heather') ||
+                               name.includes('tracy') ||
+                               name.includes('linda') ||
+                               name.includes('amber') ||
+                               name.includes('fiona') ||
+                               name.includes('paige') ||
+                               name.includes('zoey') ||
+                               name.includes('claire') ||
+                               name.includes('kimberly') ||
+                               name.includes('jessica') ||
+                               name.includes('zira') ||
+                               name.includes('elena') ||
+                               name.includes('mary') ||
+                               name.includes('lisa') ||
+                               name.includes('sarah');
+          
+          return isNotMaleVoice && (isFemaleVoice || isNotMaleVoice);
+        });
         
-        setAvailableVoices(englishVoices);
+        const maleVoices = allEnglishVoices.filter(voice => {
+          const name = voice.name.toLowerCase();
+          return name.includes('david') || 
+                 name.includes('mark') || 
+                 name.includes('daniel') || 
+                 name.includes('tom') || 
+                 name.includes('paul') || 
+                 name.includes('james') || 
+                 name.includes('richard') ||
+                 name.includes('male');
+        });
         
-        // Find best voice with mobile preference
+        // Combine with female voices first
+        const sortedVoices = [...femaleVoices, ...maleVoices];
+        
+        setAvailableVoices(sortedVoices);
+        
+        // Find best default voice - prioritize sweet female voices
         let defaultVoice;
-        if (isMobile) {
-          // Mobile: prefer Google, Samsung, or default voices
-          defaultVoice = englishVoices.find(v => 
-            v.name.toLowerCase().includes('google') ||
-            v.name.toLowerCase().includes('samsung') ||
-            v.name.toLowerCase().includes('default')
-          ) || englishVoices[0];
-        } else {
-          // Desktop: prefer natural-sounding female voices
-          defaultVoice = englishVoices.find(v => 
-            (v.name.toLowerCase().includes('samantha') || 
-             v.name.toLowerCase().includes('natural') ||
-             v.name.toLowerCase().includes('enhanced')) &&
-            v.name.toLowerCase().includes('female')
-          ) || englishVoices.find(v => v.name.toLowerCase().includes('female')) || 
-             englishVoices[0];
-        }
+        
+        // Priority order for sweet, friendly female voices - Chrome & Samsung Internet optimized
+        defaultVoice = sortedVoices.find(v => 
+          v.name.toLowerCase().includes('microsoft eva')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('microsoft hazel')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('microsoft aria')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('eva')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('hazel')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('samantha')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('karen')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('allison')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('ava')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('serena')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('google') && v.name.toLowerCase().includes('female')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('samsung') && v.name.toLowerCase().includes('female')
+        ) || 
+        sortedVoices.find(v => 
+          v.name.toLowerCase().includes('female')
+        ) || 
+        femaleVoices[0] ||
+        sortedVoices[0];
         
         if (defaultVoice && !selectedVoice) {
           setSelectedVoice(defaultVoice.name);
         }
       };
 
-      // Multiple attempts to load voices (mobile browsers need this)
+      // Chrome & Samsung Internet specific loading with more attempts
       loadVoices();
+      
       if (window.speechSynthesis.onvoiceschanged !== undefined) {
         window.speechSynthesis.onvoiceschanged = loadVoices;
       }
       
-      // Fallback for mobile browsers
+      // Multiple fallbacks for Chrome & Samsung Internet - more aggressive loading
+      setTimeout(loadVoices, 10);
+      setTimeout(loadVoices, 50);
       setTimeout(loadVoices, 100);
+      setTimeout(loadVoices, 200);
       setTimeout(loadVoices, 500);
+      setTimeout(loadVoices, 1000);
+      setTimeout(loadVoices, 2000);
+      
+      // Force reload voices on user interaction for Chrome
+      const forceLoadVoices = () => {
+        if (window.speechSynthesis.getVoices().length > 0) {
+          loadVoices();
+        } else {
+          // Try again after a short delay
+          setTimeout(() => {
+            if (window.speechSynthesis.getVoices().length > 0) {
+              loadVoices();
+            }
+          }, 100);
+        }
+      };
+      
+      document.addEventListener('click', forceLoadVoices, { once: true });
+      document.addEventListener('touchstart', forceLoadVoices, { once: true });
+      document.addEventListener('keydown', forceLoadVoices, { once: true });
     }
 
     // Cleanup
@@ -320,7 +537,7 @@ export default function MainChat({ user, onLogout }: {
       // Stop any currently playing speech
       window.speechSynthesis.cancel();
       
-      // Clean text for better speech synthesis (convert emojis to words)
+      // Clean text for better speech synthesis (convert ALL emojis to words)
       const cleanText = text
         .replace(/💙/g, ' blue heart ')
         .replace(/💜/g, ' purple heart ')
@@ -328,7 +545,7 @@ export default function MainChat({ user, onLogout }: {
         .replace(/💯/g, ' hundred points ')
         .replace(/😊/g, ' smiling face ')
         .replace(/😢/g, ' sad face ')
-        .replace(/😭/g, ' crying face ')
+        .replace(/😭/g, ' crying loudly ')
         .replace(/❤️/g, ' red heart ')
         .replace(/💕/g, ' two hearts ')
         .replace(/🥺/g, ' pleading face ')
@@ -337,97 +554,164 @@ export default function MainChat({ user, onLogout }: {
         .replace(/✨/g, ' sparkles ')
         .replace(/🌟/g, ' star ')
         .replace(/💖/g, ' sparkling heart ')
-        .replace(/🫂/g, ' people hugging ')
-        .replace(/🤍/g, ' white heart ')
-        .replace(/💗/g, ' growing heart ')
-        .replace(/💛/g, ' yellow heart ')
-        .replace(/🧡/g, ' orange heart ')
-        .replace(/💚/g, ' green heart ')
-        .replace(/🖤/g, ' black heart ')
-        .replace(/🤎/g, ' brown heart ')
-        .replace(/💘/g, ' heart with arrow ')
-        .replace(/💝/g, ' heart with ribbon ')
-        .replace(/💞/g, ' revolving hearts ')
-        .replace(/💟/g, ' heart decoration ')
-        .replace(/❣️/g, ' heart exclamation ')
-        .replace(/💔/g, ' broken heart ')
-        .replace(/❤️‍🔥/g, ' heart on fire ')
-        .replace(/❤️‍🩹/g, ' mending heart ')
-        .replace(/♥️/g, ' heart suit ')
-        .replace(/🫶/g, ' heart hands ')
+        .replace(/🔥/g, ' fire ')
+        .replace(/💪/g, ' flexed bicep ')
         .replace(/👍/g, ' thumbs up ')
         .replace(/👎/g, ' thumbs down ')
-        .replace(/👏/g, ' clapping hands ')
-        .replace(/🤝/g, ' handshake ')
-        .replace(/💪/g, ' flexed biceps ')
-        .replace(/🔥/g, ' fire ')
-        .replace(/⭐/g, ' star ')
+        .replace(/😂/g, ' laughing ')
+        .replace(/🤣/g, ' rolling on floor laughing ')
+        .replace(/😍/g, ' heart eyes ')
+        .replace(/🥰/g, ' smiling face with hearts ')
+        .replace(/😘/g, ' face blowing kiss ')
+        .replace(/😉/g, ' winking face ')
+        .replace(/😎/g, ' cool sunglasses ')
+        .replace(/🤔/g, ' thinking face ')
+        .replace(/😮/g, ' open mouth ')
+        .replace(/😲/g, ' astonished face ')
         .replace(/🎉/g, ' party popper ')
         .replace(/🎊/g, ' confetti ball ')
         .replace(/🌈/g, ' rainbow ')
         .replace(/☀️/g, ' sun ')
-        .replace(/🌙/g, ' crescent moon ')
-        .replace(/⚡/g, ' lightning ')
+        .replace(/🌙/g, ' moon ')
+        .replace(/⭐/g, ' star ')
         .replace(/💫/g, ' dizzy star ')
+        .replace(/🎵/g, ' musical note ')
+        .replace(/🎶/g, ' musical notes ')
+        .replace(/🎤/g, ' microphone ')
+        .replace(/📱/g, ' mobile phone ')
+        .replace(/💻/g, ' laptop ')
+        .replace(/🖥️/g, ' desktop computer ')
+        .replace(/⚡/g, ' lightning bolt ')
         .replace(/🌸/g, ' cherry blossom ')
         .replace(/🌺/g, ' hibiscus ')
         .replace(/🌻/g, ' sunflower ')
-        .replace(/🌷/g, ' tulip ')
         .replace(/🌹/g, ' rose ')
-        .replace(/🥀/g, ' wilted flower ')
         .replace(/🦋/g, ' butterfly ')
-        .replace(/🐝/g, ' bee ')
-        .replace(/🌿/g, ' herb ')
+        .replace(/🐱/g, ' cat ')
+        .replace(/🐶/g, ' dog ')
+        .replace(/🎁/g, ' gift ')
         .replace(/🍀/g, ' four leaf clover ')
-        .replace(/🌳/g, ' deciduous tree ')
-        .replace(/🌲/g, ' evergreen tree ')
-        .replace(/🏔️/g, ' snow capped mountain ')
-        .replace(/🌊/g, ' water wave ')
-        .replace(/💧/g, ' droplet ')
-        .replace(/☔/g, ' umbrella with rain drops ')
-        .replace(/⛅/g, ' sun behind cloud ')
-        .replace(/🌤️/g, ' sun behind small cloud ')
-        .replace(/⛈️/g, ' cloud with lightning and rain ')
-        .replace(/🌩️/g, ' cloud with lightning ')
-        .replace(/❄️/g, ' snowflake ')
-        .replace(/☃️/g, ' snowman ')
-        .replace(/⛄/g, ' snowman without snow ')
-        .replace(/🌬️/g, ' wind face ')
-        .replace(/💨/g, ' dashing away ')
-        .replace(/🌪️/g, ' tornado ')
-        .replace(/🌀/g, ' cyclone ');
+        .replace(/💝/g, ' heart with ribbon ')
+        .replace(/💗/g, ' growing heart ')
+        .replace(/💓/g, ' beating heart ')
+        .replace(/💘/g, ' heart with arrow ')
+        .replace(/💋/g, ' kiss mark ')
+        .replace(/👋/g, ' waving hand ')
+        .replace(/🤝/g, ' handshake ')
+        .replace(/👏/g, ' clapping hands ')
+        .replace(/🙌/g, ' raising hands ')
+        .replace(/🤲/g, ' palms up together ')
+        .replace(/😇/g, ' smiling face with halo ')
+        .replace(/🥳/g, ' partying face ')
+        .replace(/🤗/g, ' hugging face ')
+        .replace(/🤭/g, ' face with hand over mouth ')
+        .replace(/🤫/g, ' shushing face ')
+        .replace(/🤯/g, ' exploding head ')
+        .replace(/🥹/g, ' face holding back tears ')
+        .replace(/😤/g, ' huffing face ')
+        .replace(/😠/g, ' angry face ')
+        .replace(/😡/g, ' pouting face ')
+        .replace(/🤬/g, ' face with symbols over mouth ')
+        .replace(/😱/g, ' face screaming in fear ')
+        .replace(/😨/g, ' fearful face ')
+        .replace(/😰/g, ' anxious face with sweat ')
+        .replace(/😥/g, ' sad but relieved face ')
+        .replace(/😓/g, ' downcast face with sweat ')
+        .replace(/🤤/g, ' drooling face ')
+        .replace(/😪/g, ' sleepy face ')
+        .replace(/😴/g, ' sleeping face ')
+        .replace(/🥱/g, ' yawning face ')
+        .replace(/😷/g, ' face with medical mask ')
+        .replace(/🤒/g, ' face with thermometer ')
+        .replace(/🤕/g, ' face with head bandage ')
+        .replace(/🤮/g, ' face vomiting ')
+        .replace(/🤧/g, ' sneezing face ')
+        .replace(/🥴/g, ' woozy face ')
+        .replace(/😵/g, ' dizzy face ')
+        .replace(/🤐/g, ' zipper mouth face ')
+        .replace(/🥶/g, ' cold face ')
+        .replace(/🥵/g, ' hot face ')
+        .replace(/😬/g, ' grimacing face ')
+        .replace(/😑/g, ' expressionless face ')
+        .replace(/😐/g, ' neutral face ')
+        .replace(/🙄/g, ' face with rolling eyes ')
+        .replace(/😏/g, ' smirking face ')
+        .replace(/😒/g, ' unamused face ')
+        .replace(/🙃/g, ' upside down face ')
+        .replace(/😔/g, ' pensive face ')
+        .replace(/😟/g, ' worried face ')
+        .replace(/😕/g, ' confused face ')
+        .replace(/☹️/g, ' frowning face ')
+        .replace(/🙁/g, ' slightly frowning face ')
+        .replace(/😣/g, ' persevering face ')
+        .replace(/😖/g, ' confounded face ')
+        .replace(/😫/g, ' tired face ')
+        .replace(/😩/g, ' weary face ')
+        .replace(/😤/g, ' huffing with anger ')
+        .replace(/😠/g, ' angry red face ')
+        .replace(/😳/g, ' flushed face ')
+        .replace(/🥲/g, ' smiling face with tear ')
+        .replace(/🤪/g, ' zany face ')
+        .replace(/😜/g, ' winking face with tongue ')
+        .replace(/😝/g, ' squinting face with tongue ')
+        .replace(/😛/g, ' face with tongue ')
+        .replace(/🤑/g, ' money mouth face ')
+        .replace(/🤠/g, ' cowboy hat face ')
+        .replace(/😈/g, ' smiling face with horns ')
+        .replace(/👿/g, ' angry face with horns ')
+        .replace(/👹/g, ' ogre ')
+        .replace(/👺/g, ' goblin ')
+        .replace(/💀/g, ' skull ')
+        .replace(/☠️/g, ' skull and crossbones ')
+        .replace(/👻/g, ' ghost ')
+        .replace(/👽/g, ' alien ')
+        .replace(/🤖/g, ' robot ')
+        .replace(/🎭/g, ' performing arts ')
+        .replace(/🤡/g, ' clown face ');
       
       const utterance = new SpeechSynthesisUtterance(cleanText);
       const voices = window.speechSynthesis.getVoices();
       
-      // Mobile-optimized voice selection
-      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      let chosen;
+      // Chrome & Samsung Internet friendly voice selection
+      let chosenVoice = voices.find(v => v.name === selectedVoice);
       
-      if (isMobile) {
-        // For mobile, prefer system voices
-        chosen = voices.find(v => v.name === selectedVoice) || 
-                 voices.find(v => v.localService && v.lang.startsWith('en-')) ||
-                 voices.find(v => v.lang.startsWith('en-') && 
-                   (v.name.toLowerCase().includes('google') || 
-                    v.name.toLowerCase().includes('samsung') ||
-                    v.name.toLowerCase().includes('default'))) ||
-                 voices.find(v => v.lang.startsWith('en-'));
-      } else {
-        // Desktop voice selection
-        chosen = voices.find(v => v.name === selectedVoice) || 
-                 voices.find(v => v.lang.startsWith('en-') && v.name.toLowerCase().includes('female')) ||
-                 voices.find(v => v.lang.startsWith('en-'));
+      if (!chosenVoice) {
+        // Fallback priority for Chrome & Samsung Internet - Microsoft voices first
+        chosenVoice = voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('microsoft eva')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('microsoft hazel')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('microsoft aria')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('eva')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('hazel')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('google')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('samsung')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('female')
+        ) || 
+        voices.find(v => v.lang.startsWith('en')) ||
+        voices[0];
       }
       
-      if (chosen) utterance.voice = chosen;
+      if (chosenVoice) utterance.voice = chosenVoice;
       
-      // Mobile-optimized settings
-      utterance.pitch = isMobile ? 1.0 : 1.1;
-      utterance.rate = isMobile ? 0.8 : 0.9;
+      // Chrome & Samsung Internet optimized settings
+      utterance.pitch = 1.1;
+      utterance.rate = 0.9;
       utterance.volume = 0.8;
       
-      // Add error handling for mobile
       utterance.onerror = (event) => {
         console.log('Speech synthesis error:', event.error);
       };
@@ -435,6 +719,82 @@ export default function MainChat({ user, onLogout }: {
       window.speechSynthesis.speak(utterance);
     } catch (error) {
       console.error('Speech synthesis error:', error);
+    }
+  };
+
+  // Simple voice recording - click to start/stop
+  const handleMicClick = () => {
+    if (!isMicSupported || isSending) return;
+    
+    if (isMicActive) {
+      // Stop recording
+      recognitionRef.current?.stop();
+      setIsMicActive(false);
+      setIsRecording(false);
+      return;
+    }
+
+    // Start recording
+    setMicError(null);
+    setIsRecording(true);
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognitionRef.current = recognition;
+    
+    recognition.lang = 'en-US';
+    recognition.interimResults = true;
+    recognition.continuous = true;
+    recognition.maxAlternatives = 1;
+    
+    recognition.onstart = () => {
+      setIsMicActive(true);
+      wasLastInputVoice.current = true;
+    };
+
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      if (finalTranscript) {
+        setInput(prev => prev + finalTranscript);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      setIsMicActive(false);
+      setIsRecording(false);
+      if (event.error === 'not-allowed' || event.error === 'denied') {
+        setMicError('Microphone permission denied. Please allow mic access.');
+      } else if (event.error === 'no-speech') {
+        setMicError("I didn't hear anything. Please try again.");
+      } else if (event.error === 'network') {
+        setMicError('Network error. Check your connection.');
+      } else {
+        setMicError('Voice input error. Try again.');
+      }
+    };
+    
+    recognition.onend = () => {
+      setIsMicActive(false);
+      setIsRecording(false);
+      // Auto-send when recording ends
+      setTimeout(() => {
+        const currentInput = (document.querySelector('input[placeholder="Type what\'s on your mind..."]') as HTMLInputElement)?.value;
+        if (currentInput && currentInput.trim().length > 0) {
+          handleSend({ text: currentInput, fromVoice: true });
+        }
+      }, 100);
+    };
+
+    try {
+      recognition.start();
+    } catch (error) {
+      setMicError('Could not start voice input. Try again.');
+      setIsMicActive(false);
+      setIsRecording(false);
     }
   };
 
@@ -461,183 +821,7 @@ export default function MainChat({ user, onLogout }: {
     setShowDeleteConfirm(false)
   }
 
-  const handleSend = async (options?: { text?: string, fromVoice?: boolean }) => {
-    const textToSend = options?.text || input;
-    const inputIsFromVoice = options?.fromVoice || false;
-    if (!textToSend.trim() || isSending) return;
-
-    // Update turn counts BEFORE sending
-    const newUserTurns = userTurns + 1;
-    const newVoiceUserTurns = inputIsFromVoice ? voiceUserTurns + 1 : voiceUserTurns;
-    
-    // Check limits
-    if (user.provider === "google") {
-      if (newUserTurns > 100) return;
-      if (inputIsFromVoice && newVoiceUserTurns > 80) return;
-    }
-
-    // Update counters
-    setUserTurns(newUserTurns);
-    if (inputIsFromVoice) {
-      setVoiceUserTurns(newVoiceUserTurns);
-    }
-
-    if (!inputIsFromVoice) {
-      wasLastInputVoice.current = false;
-    } else {
-      wasLastInputVoice.current = true;
-    }
-
-    const userMessage: Message = {
-      id: Date.now(),
-      text: textToSend,
-      isUser: true,
-    };
-
-    const newMessages = [...messages, userMessage]
-    setMessages(newMessages)
-    setInput("")
-    setIsSending(true)
-
-    try {
-      const conversationHistory = newMessages.map((m) => `${m.isUser ? "User" : "FED UP"}: ${m.text}`)
-      const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "X-API-Type": "main-chat"
-        },
-        body: JSON.stringify({ message: textToSend, conversationHistory }),
-      })
-      const data = await res.json()
-      const aiResponseText = data.response || "Hey, I'm here for you. What's going on?"
-
-      const aiResponse: Message = {
-        id: Date.now() + 1,
-        text: aiResponseText,
-        isUser: false,
-      }
-
-      setMessages((prev) => [...prev, aiResponse])
-
-      // Voice response logic: speak if voice is enabled OR if input was from microphone
-      if (isVoiceEnabled || wasLastInputVoice.current || inputIsFromVoice) {
-        speak(aiResponseText);
-      }
-    } catch (error) {
-      const aiResponse: Message = {
-        id: Date.now() + 1,
-        text: "Hey, I'm here for you. What's going on?",
-        isUser: false,
-      }
-      setMessages((prev) => [...prev, aiResponse])
-      
-      // Voice response logic: speak if voice is enabled OR if input was from microphone
-      if (isVoiceEnabled || wasLastInputVoice.current || inputIsFromVoice) {
-        speak("Hey, I'm here for you. What's going on?");
-      }
-    } finally {
-      setIsSending(false)
-      // Track last active time for return user detection
-      sessionStorage.setItem('lastActiveTime', Date.now().toString())
-    }
-  }
-
-  const handleMicClick = () => {
-    if (!isMicSupported || isSending) return
-    
-    if (isMicActive) {
-      recognitionRef.current?.stop()
-      setIsMicActive(false)
-      return
-    }
-
-    setMicError(null)
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognitionRef.current = recognition;
-
-    // Mobile-optimized settings
-    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    recognition.lang = 'en-US'
-    recognition.interimResults = !isMobile // Disable interim results on mobile for better performance
-    recognition.continuous = !isMobile // Disable continuous on mobile
-    recognition.maxAlternatives = 1
-
-    recognition.onstart = () => {
-      setIsMicActive(true)
-      wasLastInputVoice.current = true;
-    }
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else if (!isMobile) {
-          // Only use interim results on desktop
-          finalTranscript += event.results[i][0].transcript;
-        }
-      }
-      if (finalTranscript) {
-        if (isMobile) {
-          // On mobile, replace the input completely
-          setInput(finalTranscript);
-        } else {
-          // On desktop, append to existing input
-          setInput(prev => prev + finalTranscript);
-        }
-      }
-    };
-
-    recognition.onspeechend = () => {
-      recognition.stop();
-    };
-
-    recognition.onerror = (event: any) => {
-      console.log('Speech recognition error:', event.error);
-      if (event.error === 'not-allowed' || event.error === 'denied') {
-        setMicError('Microphone permission denied. Please allow mic access.')
-      } else if (event.error === 'no-speech') {
-        setMicError("I didn't hear anything. Please try again.")
-      } else if (event.error === 'network') {
-        setMicError('Network error. Check your connection.')
-      } else {
-        setMicError('Voice input error. Try again.')
-      }
-    }
-    
-    recognition.onend = () => {
-      setIsMicActive(false);
-      if (isMobile) {
-        // On mobile, immediately send if there's input
-        setTimeout(() => {
-          const currentInput = (document.querySelector('input[placeholder="Type what\'s on your mind..."]') as HTMLInputElement)?.value;
-          if (currentInput && currentInput.trim().length > 0) {
-            handleSend({ text: currentInput, fromVoice: true });
-          }
-        }, 100);
-      } else {
-        // Desktop behavior (existing)
-        setTimeout(() => {
-          const currentInput = (document.querySelector('input[placeholder="Type what\'s on your mind..."]') as HTMLInputElement)?.value;
-          if (currentInput && currentInput.trim().length > 0) {
-            handleSend({ text: currentInput, fromVoice: true });
-          }
-        }, 100);
-      }
-    };
-
-    try {
-      recognition.start();
-    } catch (error) {
-      console.error('Failed to start speech recognition:', error);
-      setMicError('Could not start voice input. Try again.');
-      setIsMicActive(false);
-    }
-  };
-
+  // Reset mic state on send
   useEffect(() => {
     if (!isMicActive) return
     if (isSending) {
@@ -663,8 +847,8 @@ export default function MainChat({ user, onLogout }: {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-1 sm:gap-3">
             <img src="/fedup-logo.png" alt="FED UP" className="w-7 h-7 sm:w-10 sm:h-10" />
-            <h1 className="hidden sm:block text-xl font-semibold bg-gradient-to-r from-[#7c3aed] to-[#ec4899] text-transparent bg-clip-text">
-              FED UP Chat
+            <h1 className="hidden sm:block text-xl font-semibold text-white">
+              FEDUP
             </h1>
           </div>
           
@@ -716,7 +900,7 @@ export default function MainChat({ user, onLogout }: {
                         variant="destructive"
                         size="sm"
                         className="bg-red-600 hover:bg-red-700 text-white flex-1"
-                        onClick={deleteChat}
+                        onClick={handleDeleteAll}
                       >
                         Delete
                       </Button>
@@ -823,23 +1007,18 @@ export default function MainChat({ user, onLogout }: {
                     onClick={handleMicClick}
                     disabled={!isMicSupported || isSending}
                     className={`relative h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center rounded-full transition-colors ${
-                      isMicActive 
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white' 
-                        : 'bg-transparent hover:bg-[#2A2F3A] text-gray-400 hover:text-white'
+                      isMicActive ? 'bg-red-500 hover:bg-red-600' : 'bg-[#7c3aed] hover:bg-[#8b5cf6]'
                     }`}
-                    aria-label={isMicActive ? "Stop voice input" : "Start voice input"}
-                    title={isMobile ? (isMicActive ? "🎙️ Listening..." : "🎙️ Tap to speak") : (isMicActive ? "Stop voice input" : "Start voice input")}
+                    aria-label={isMicActive ? "Stop recording" : "Start recording"}
+                    title={isMicActive ? "🎙️ Click to stop recording" : "🎙️ Click to start recording"}
                   >
-                    <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
+                    {isMicActive ? (
+                      <span className="text-white font-bold">●</span>
+                    ) : (
+                      <Mic className="w-4 h-4 sm:w-5 sm:h-5" />
+                    )}
                     {isMicActive && (
-                      <>
-                        <span className="absolute inset-0 rounded-full border-2 border-amber-500 animate-ping" />
-                        {isMobile && (
-                          <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-amber-500 text-white text-xs px-2 py-1 rounded whitespace-nowrap">
-                            Listening...
-                          </span>
-                        )}
-                      </>
+                      <span className="absolute -inset-2 rounded-full border-2 border-red-500 animate-ping pointer-events-none"></span>
                     )}
                   </Button>
                   <Button
@@ -886,12 +1065,12 @@ export default function MainChat({ user, onLogout }: {
                         ))}
                       </select>
                     ) : (
-                      <span className="text-gray-400 text-xs">Loading voices…</span>
+                      <span className="text-purple-400 text-xs animate-pulse">🎵 Loading sweet voices...</span>
                     )
                   )}
                   {isMobile && (isVoiceEnabled || wasLastInputVoice.current) && (
                     <span className="text-purple-400 text-xs">
-                      🎵 {selectedVoice ? 'Voice Ready' : 'Setting up...'}
+                      🎵 {availableVoices.length > 0 ? 'Voice Ready' : 'Loading...'}
                     </span>
                   )}
                   <div className="text-xs text-gray-400 ml-auto sm:ml-0 flex items-center">
