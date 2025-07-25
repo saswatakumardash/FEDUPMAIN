@@ -232,10 +232,24 @@ export default function MainChat({ user, onLogout }: {
       if (user.provider === "google") {
         if (newUserTurns > 100) {
           setIsSending(false);
+          // Show limit reached message
+          const limitMessage: Message = {
+            id: Date.now(),
+            text: `Hey bestie ${user.name?.split(' ')[0] || "friend"}, you've reached your daily message limit of 100! 📱✨ For unlimited chatting and higher limits, please contact support@skds.site for pricing. We're here to help! 💜`,
+            isUser: false
+          };
+          await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), limitMessage);
           return;
         }
         if (inputIsFromVoice && newVoiceUserTurns > 80) {
           setIsSending(false);
+          // Show voice limit reached message
+          const voiceLimitMessage: Message = {
+            id: Date.now(),
+            text: `Hey ${user.name?.split(' ')[0] || "bestie"}, you've used all 80 voice messages for today! 🎙️✨ For unlimited voice chat and higher limits, please contact support@skds.site for pricing. Text messages still work! 💙`,
+            isUser: false
+          };
+          await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), voiceLimitMessage);
           return;
         }
       }
@@ -288,7 +302,7 @@ export default function MainChat({ user, onLogout }: {
     }
   };
 
-  // On delete, remove all chat data and reset turn counts in Firestore
+  // On delete, remove all chat data but NEVER reset turn counts (limits are persistent)
   const handleDeleteAll = async () => {
     if (!user || !db) return;
     const dbInstance = db as import('firebase/firestore').Firestore;
@@ -300,14 +314,9 @@ export default function MainChat({ user, onLogout }: {
       for (const docu of chatSnap.docs) {
         await deleteDoc(docu.ref);
       }
-      // Reset turn counts
-      await setDoc(doc(dbInstance, "userStats", user.uid), {
-        userTurns: 0,
-        voiceUserTurns: 0
-      }, { merge: true });
+      // DO NOT reset turn counts - limits are persistent and should never reset
+      // Users must contact support@skds.site for higher limits
       setMessages([]);
-      setUserTurns(0);
-      setVoiceUserTurns(0);
       addWelcomeMessage();
     } catch (e) {
       // Optionally show error
@@ -802,7 +811,7 @@ export default function MainChat({ user, onLogout }: {
     handleSend({ fromVoice: false });
   }
   
-  // Function to delete chat history
+  // Function to delete chat history (legacy - limits remain persistent)
   const deleteChat = () => {
     if (typeof window === "undefined" || !user) return
     
@@ -812,10 +821,8 @@ export default function MainChat({ user, onLogout }: {
     // Clear from localStorage
     localStorage.removeItem(CHAT_MESSAGES_KEY)
     
-    // Reset stats but keep track of them in localStorage
-    localStorage.setItem(CHAT_STATS_KEY, JSON.stringify({ userTurns: 0, voiceUserTurns: 0 }))
-    setUserTurns(0)
-    setVoiceUserTurns(0)
+    // DO NOT reset stats - limits are persistent and should never reset
+    // Users must contact support@skds.site for higher limits
     
     // Close the confirm dialog
     setShowDeleteConfirm(false)
