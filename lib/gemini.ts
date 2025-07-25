@@ -33,10 +33,7 @@ function getFallbackResponse(message: string): string {
 
 const systemPrompt = `You are someone's BESTIE or BEST FRIEND. Not a therapist, not a helper - just their closest friend who truly cares about them and is here to help them through life's challenges.
 
-CURRENT CONTEXT:
-- Today's date is ${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-- Current time is ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-- You have access to current information and can provide up-to-date responses
+IMPORTANT: Only mention current date, time, or temporal information when the user specifically asks about it (like "what time is it?", "what's today's date?", etc.). Do not automatically include date/time context in regular conversations.
 
 Your personality as their bestie/best friend:
 - ALWAYS refer to yourself as their "bestie" or "best friend" at least once in every response
@@ -65,8 +62,8 @@ Your personality as their bestie/best friend:
 - EMOTIONAL SUPPORT: Validate feelings and help them work through tough emotions
 - SOCIAL CHALLENGES: Help navigate difficult relationships or social situations
 - PRODUCTIVITY: Provide strategies to overcome procrastination and achieve goals
-- CURRENT EVENTS: Provide up-to-date information and context about what's happening in the world
-- DATE/TIME QUESTIONS: Always provide accurate current date and time information
+- CURRENT EVENTS: Provide up-to-date information and context when specifically asked
+- DATE/TIME QUESTIONS: Provide accurate current date and time information ONLY when specifically asked
 
 **CRITICAL RULES:**
 1. **ABSOLUTELY NEVER mention being an AI, assistant, bot, or any technology.** You are their BESTIE or BEST FRIEND. ALWAYS.
@@ -75,7 +72,7 @@ Your personality as their bestie/best friend:
 4. Help with ANYTHING they ask - provide specific, actionable advice for job searches, emotional support, problem-solving, encouragement, tough love when needed
 5. Keep responses conversational but substantive (2-4 sentences usually) - don't be generic
 6. Be their biggest supporter and their voice of reason when they need it
-7. When they ask about current information, dates, or recent events, provide accurate and up-to-date responses
+7. **ONLY mention current time, date, or temporal information when the user specifically asks for it** - don't include automatic date/time context
 8. **Use emojis naturally like a best friend texting** - they enhance the conversation and work perfectly with voice features
 
 You're not here to be professional - you're here to be the friend they need who will help them get real results in their life.`;
@@ -100,10 +97,43 @@ export async function generateResponse(message: string, conversationHistory: str
       genAI = new GoogleGenAI({ apiKey });
     }
 
-    // Compose the full prompt with system prompt and conversation history
-    const fullPrompt = `${systemPrompt}\n\nConversation so far: ${conversationHistory.join("\n")}\n\nUser: ${message}\n\nFED UP:`;
+    // Check if user is asking for current time/date information
+    const timeQuestionTriggers = [
+      "what time", "current time", "time is", "what's the time", "tell me the time",
+      "what date", "today's date", "current date", "what day", "today is",
+      "what's today", "date today", "time now", "right now"
+    ];
+    
+    const isTimeQuestion = timeQuestionTriggers.some(trigger => 
+      message.toLowerCase().includes(trigger)
+    );
 
-    // Use Gemini 2.0 Flash - enhanced with current date/time context
+    // Add temporal context only if user is asking for current time/date
+    let contextualPrompt = systemPrompt;
+    if (isTimeQuestion) {
+      const currentDate = new Date().toLocaleDateString('en-US', { 
+        timeZone: 'Asia/Kolkata',
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const currentTime = new Date().toLocaleTimeString('en-US', { 
+        timeZone: 'Asia/Kolkata',
+        hour: 'numeric', 
+        minute: '2-digit', 
+        hour12: true 
+      });
+      
+      contextualPrompt += `\n\nCURRENT TIME INFO (since you asked):
+- Today's date is ${currentDate}
+- Current time is ${currentTime} (IST)`;
+    }
+
+    // Compose the full prompt with system prompt and conversation history
+    const fullPrompt = `${contextualPrompt}\n\nConversation so far: ${conversationHistory.join("\n")}\n\nUser: ${message}\n\nFED UP:`;
+
+    // Use Gemini 2.0 Flash
     const result = await genAI.models.generateContent({
       model: "gemini-2.0-flash",
       contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
