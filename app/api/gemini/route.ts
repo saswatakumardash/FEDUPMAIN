@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateResponse } from '@/lib/gemini';
 import { generateDemoResponse } from '@/lib/gemini-demo';
+import { searchWeb } from '@/lib/web-search';
 
 export async function POST(req: NextRequest) {
   // Set CORS headers
@@ -24,8 +25,33 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // Build conversation history for Gemini - using full generateResponse for main chat
-      const response = await generateResponse(message, conversationHistory || []);
+      // Check if message might benefit from web search
+      const searchTriggers = [
+        'what time', 'what date', 'current', 'latest', 'recent', 'news', 'today', 
+        'what\'s happening', 'weather', 'stock', 'price', 'when is', 'what year',
+        'how much', 'cost', 'trending', 'popular', 'new', 'update'
+      ];
+      
+      const needsSearch = searchTriggers.some(trigger => 
+        message.toLowerCase().includes(trigger)
+      );
+      
+      let enhancedHistory = conversationHistory || [];
+      
+      // Add web search context if needed
+      if (needsSearch) {
+        try {
+          const webInfo = await searchWeb(message);
+          if (webInfo) {
+            enhancedHistory = [...enhancedHistory, `[Current web information: ${webInfo}]`];
+          }
+        } catch (searchError) {
+          console.warn('Web search failed:', searchError);
+        }
+      }
+
+      // Build conversation history for Gemini - using enhanced generateResponse for main chat
+      const response = await generateResponse(message, enhancedHistory);
       return NextResponse.json({ response }, { headers });
     } catch (error) {
       console.error('Gemini Error:', error);
