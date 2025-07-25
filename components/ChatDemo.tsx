@@ -31,24 +31,40 @@ interface UserData {
 // Generate a unique device identifier for demo limits
 const getDeviceId = (): string => {
   if (typeof window === "undefined") return "server";
-  let deviceId = localStorage.getItem("fedup-device-id");
-  if (!deviceId) {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    ctx!.textBaseline = 'top';
-    ctx!.font = '14px Arial';
-    ctx!.fillText('Device fingerprint', 2, 2);
-    const fingerprint = [
-      navigator.userAgent,
-      navigator.language,
-      screen.width + 'x' + screen.height,
-      new Date().getTimezoneOffset(),
-      canvas.toDataURL()
-    ].join('|');
-    deviceId = btoa(fingerprint).slice(0, 32);
-    localStorage.setItem("fedup-device-id", deviceId);
+  
+  try {
+    let deviceId = localStorage.getItem("fedup-device-id");
+    if (!deviceId) {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.textBaseline = 'top';
+          ctx.font = '14px Arial';
+          ctx.fillText('Device fingerprint', 2, 2);
+          const fingerprint = [
+            navigator.userAgent || 'unknown',
+            navigator.language || 'en',
+            (screen.width || 1920) + 'x' + (screen.height || 1080),
+            new Date().getTimezoneOffset() || 0,
+            canvas.toDataURL()
+          ].join('|');
+          deviceId = btoa(fingerprint).slice(0, 32);
+        } else {
+          // Fallback if canvas fails
+          deviceId = btoa(Math.random().toString()).slice(0, 32);
+        }
+      } catch (canvasError) {
+        // Fallback if canvas creation fails
+        deviceId = btoa(Date.now().toString() + Math.random().toString()).slice(0, 32);
+      }
+      localStorage.setItem("fedup-device-id", deviceId);
+    }
+    return deviceId;
+  } catch (error) {
+    console.warn('Device ID generation failed, using fallback:', error);
+    return "fallback-" + Date.now().toString(36);
   }
-  return deviceId;
 };
 
 // Obfuscated key (base64 of a string + deviceId)
@@ -349,29 +365,41 @@ export default function ChatDemo() {
       // Stop any currently playing speech
       window.speechSynthesis.cancel();
       
-      // Clean text for better speech synthesis
-      const cleanText = text
-        .replace(/💙/g, ' blue heart ')
-        .replace(/💜/g, ' purple heart ')
-        .replace(/🤗/g, ' hugging face ')
-        .replace(/💯/g, ' hundred points ')
-        .replace(/😊/g, ' smiling face ')
-        .replace(/😢/g, ' sad face ')
-        .replace(/😭/g, ' crying loudly ')
-        .replace(/❤️/g, ' red heart ')
-        .replace(/💕/g, ' two hearts ')
-        .replace(/🥺/g, ' pleading face ')
-        .replace(/😌/g, ' relieved face ')
-        .replace(/🙏/g, ' folded hands ')
-        .replace(/✨/g, ' sparkles ')
-        .replace(/🌟/g, ' star ')
-        .replace(/💖/g, ' sparkling heart ')
+      // Clean text for better speech synthesis - remove markdown and convert emojis
+      let cleanText = text
+        // Remove markdown formatting
+        .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold **text**
+        .replace(/\*(.*?)\*/g, '$1')     // Remove italic *text*
+        .replace(/__(.*?)__/g, '$1')     // Remove bold __text__
+        .replace(/_(.*?)_/g, '$1')       // Remove italic _text_
+        .replace(/`(.*?)`/g, '$1')       // Remove code `text`
+        .replace(/~~(.*?)~~/g, '$1')     // Remove strikethrough ~~text~~
+        .replace(/\[(.*?)\]\(.*?\)/g, '$1') // Remove links [text](url)
+        .replace(/^#+\s*/gm, '')         // Remove headers # ## ###
+        .replace(/^\s*[-*+]\s*/gm, '')   // Remove bullet points
+        .replace(/^\s*\d+\.\s*/gm, '')   // Remove numbered lists
+        .replace(/^\s*>\s*/gm, '')       // Remove blockquotes
+        
+        // Convert common emojis to speech-friendly text
+        .replace(/💙|💜|❤️|💖|💗|💓|💘|💕|💝/g, ' heart ')
+        .replace(/🤗|🫂/g, ' hug ')
+        .replace(/💯/g, ' amazing ')
+        .replace(/😊|😌|😇|🥰|😍|😘/g, ' happy ')
+        .replace(/😢|�|🥺|🥲/g, ' sad ')
+        .replace(/😂|🤣/g, ' laughing ')
+        .replace(/🙏/g, ' thank you ')
+        .replace(/✨|🌟|⭐|�/g, ' sparkle ')
         .replace(/🔥/g, ' fire ')
-        .replace(/💪/g, ' flexed bicep ')
-        .replace(/👍/g, ' thumbs up ')
-        .replace(/👎/g, ' thumbs down ')
-        .replace(/😂/g, ' laughing ')
-        .replace(/🤣/g, ' rolling on floor laughing ');
+        .replace(/💪/g, ' strong ')
+        .replace(/👍|👏|🙌/g, ' great ')
+        
+        // Remove any remaining emojis that weren't converted
+        .replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '')
+        
+        // Clean up extra spaces and punctuation
+        .replace(/\s+/g, ' ')           // Multiple spaces to single space
+        .replace(/\s*([.!?])\s*/g, '$1 ') // Normalize punctuation spacing
+        .trim();
       
       const utterance = new SpeechSynthesisUtterance(cleanText);
       const voices = window.speechSynthesis.getVoices();
@@ -379,7 +407,7 @@ export default function ChatDemo() {
       // Find the selected voice or fallback
       let chosenVoice = voices.find(v => v.name === selectedVoice);
       
-      if (!chosenVoice) {
+      if (!chosenVoice && voices.length > 0) {
         // Fallback priority
         chosenVoice = voices.find(v => 
           v.lang.startsWith('en') && v.name.toLowerCase().includes('female')
@@ -420,59 +448,79 @@ export default function ChatDemo() {
       return
     }
 
-    setMicError(null)
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognition()
-    recognitionRef.current = recognition;
+    try {
+      setMicError(null)
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+      
+      if (!SpeechRecognition) {
+        setMicError('Speech recognition not supported in this browser');
+        return;
+      }
+      
+      const recognition = new SpeechRecognition()
+      recognitionRef.current = recognition;
 
-    recognition.lang = 'en-US'
-    recognition.interimResults = true
-    recognition.continuous = true
+      recognition.lang = 'en-US'
+      recognition.interimResults = true
+      recognition.continuous = true
 
-    recognition.onstart = () => {
-      setIsMicActive(true)
-      wasLastInputVoice.current = true; // Mark input as voice
-    }
+      recognition.onstart = () => {
+        setIsMicActive(true)
+        wasLastInputVoice.current = true; // Mark input as voice
+      }
 
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
+      recognition.onresult = (event: any) => {
+        try {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            }
+          }
+          if (finalTranscript) {
+            setInput(prev => prev + finalTranscript); // Append final results
+          }
+        } catch (error) {
+          console.warn('Speech recognition result processing error:', error);
+        }
+      };
+
+      // Auto-send when the user stops talking
+      recognition.onspeechend = () => {
+        recognition.stop();
+      };
+
+      recognition.onerror = (event: any) => {
+        console.warn('Speech recognition error:', event.error);
+        if (event.error === 'not-allowed' || event.error === 'denied') {
+          setMicError('Microphone permission denied. Please allow mic access.')
+        } else if (event.error === 'no-speech') {
+          setMicError("I didn't hear anything. Please try again.")
+        } else {
+          setMicError('Voice input error. Try again.')
         }
       }
-      if (finalTranscript) {
-        setInput(prev => prev + finalTranscript); // Append final results
-      }
-    };
+      
+      recognition.onend = () => {
+        setIsMicActive(false);
+        // Use a timeout to ensure 'input' state is updated before sending
+        setTimeout(() => {
+          try {
+            // Use React state instead of DOM query to avoid client-side errors
+            if (input && input.trim().length > 0) {
+              handleSend({ text: input, fromVoice: true });
+            }
+          } catch (error) {
+            console.warn('Voice input processing error:', error);
+          }
+        }, 100);
+      };
 
-    // Auto-send when the user stops talking
-    recognition.onspeechend = () => {
-      recognition.stop();
-    };
-
-    recognition.onerror = (event: any) => {
-      if (event.error === 'not-allowed' || event.error === 'denied') {
-        setMicError('Microphone permission denied. Please allow mic access.')
-      } else if (event.error === 'no-speech') {
-        setMicError("I didn't hear anything. Please try again.")
-      } else {
-        setMicError('Voice input error. Try again.')
-      }
+      recognition.start();
+    } catch (error) {
+      console.error('Speech recognition initialization error:', error);
+      setMicError('Voice input initialization failed. Please try again.');
     }
-    
-    recognition.onend = () => {
-      setIsMicActive(false);
-      // Use a timeout to ensure 'input' state is updated before sending
-      setTimeout(() => {
-        const currentInput = (document.querySelector('input[placeholder="Type anything..."]') as HTMLInputElement)?.value;
-        if (currentInput && currentInput.trim().length > 0) {
-          handleSend({ text: currentInput, fromVoice: true });
-        }
-      }, 100);
-    };
-
-    recognition.start();
   }
 
   // Reset mic state on send
