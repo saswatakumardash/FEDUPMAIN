@@ -228,14 +228,14 @@ export default function MainChat({ user, onLogout }: {
         newUserTurns = (data.userTurns || 0) + 1;
         newVoiceUserTurns = inputIsFromVoice ? (data.voiceUserTurns || 0) + 1 : (data.voiceUserTurns || 0);
       }
-      // Check limits
+      // Check limits - 120 total messages per month, 80 voice messages max
       if (user.provider === "google") {
-        if (newUserTurns > 100) {
+        if (newUserTurns > 120) {
           setIsSending(false);
           // Show limit reached message
           const limitMessage: Message = {
             id: Date.now(),
-            text: `Hey bestie ${user.name?.split(' ')[0] || "friend"}, you've reached your daily message limit of 100! 📱✨ For unlimited chatting and higher limits, please contact support@skds.site for pricing. We're here to help! 💜`,
+            text: `Hey bestie ${user.name?.split(' ')[0] || "friend"}, you've reached your monthly message limit of 120! 📱✨ For unlimited chatting and higher limits, please contact support@skds.site for pricing. We're here to help! 💜`,
             isUser: false
           };
           await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), limitMessage);
@@ -246,7 +246,7 @@ export default function MainChat({ user, onLogout }: {
           // Show voice limit reached message
           const voiceLimitMessage: Message = {
             id: Date.now(),
-            text: `Hey ${user.name?.split(' ')[0] || "bestie"}, you've used all 80 voice messages for today! 🎙️✨ For unlimited voice chat and higher limits, please contact support@skds.site for pricing. Text messages still work! 💙`,
+            text: `Hey ${user.name?.split(' ')[0] || "bestie"}, you've used all 80 voice messages for this month! 🎙️✨ For unlimited voice chat and higher limits, please contact support@skds.site for pricing. Text messages still work! 💙`,
             isUser: false
           };
           await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), voiceLimitMessage);
@@ -1083,7 +1083,7 @@ export default function MainChat({ user, onLogout }: {
                   <div className="text-xs text-gray-400 ml-auto sm:ml-0 flex items-center">
                     <span className="mr-1">Messages: {messages.length}</span>
                     <span>•</span>
-                    <span className="mx-1">💬 {100 - userTurns}</span>
+                    <span className="mx-1">💬 {120 - userTurns}</span>
                     <span>•</span>
                     <span className="ml-1">🎙 {80 - voiceUserTurns}</span>
                   </div>
