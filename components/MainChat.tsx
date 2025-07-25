@@ -1046,10 +1046,12 @@ export default function MainChat({ user, onLogout }: {
                       className="scale-70"
                     />
                   </div>
-                  {(isVoiceEnabled || wasLastInputVoice.current) && !isMobile && (
+                  {(isVoiceEnabled || wasLastInputVoice.current) && (
                     availableVoices.length > 0 ? (
                       <select
-                        className="bg-[#2A2F3A] text-white border border-[#7c3aed] rounded px-2 py-1 text-xs max-w-[120px] sm:max-w-[180px] truncate focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                        className={`bg-[#2A2F3A] text-white border border-[#7c3aed] rounded px-2 py-1 text-xs truncate focus:outline-none focus:ring-1 focus:ring-[#7c3aed] ${
+                          isMobile ? 'max-w-[100px]' : 'max-w-[120px] sm:max-w-[180px]'
+                        }`}
                         value={selectedVoice}
                         onChange={e => setSelectedVoice(e.target.value)}
                         style={{ 
@@ -1060,18 +1062,16 @@ export default function MainChat({ user, onLogout }: {
                       >
                         {availableVoices.map(v => (
                           <option key={v.name} value={v.name} className="bg-[#2A2F3A] text-white">
-                            {v.name.length > 15 ? v.name.substring(0, 15) + '...' : v.name}
+                            {isMobile ? 
+                              (v.name.length > 10 ? v.name.substring(0, 10) + '...' : v.name) :
+                              (v.name.length > 15 ? v.name.substring(0, 15) + '...' : v.name)
+                            }
                           </option>
                         ))}
                       </select>
                     ) : (
                       <span className="text-purple-400 text-xs animate-pulse">🎵 Loading sweet voices...</span>
                     )
-                  )}
-                  {isMobile && (isVoiceEnabled || wasLastInputVoice.current) && (
-                    <span className="text-purple-400 text-xs">
-                      🎵 {availableVoices.length > 0 ? 'Voice Ready' : 'Loading...'}
-                    </span>
                   )}
                   <div className="text-xs text-gray-400 ml-auto sm:ml-0 flex items-center">
                     <span className="mr-1">Messages: {messages.length}</span>
