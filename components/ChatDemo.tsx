@@ -81,8 +81,6 @@ export default function ChatDemo() {
   const [selectedVoice, setSelectedVoice] = useState<string>("")
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([])
   const [tampered, setTampered] = useState(false);
-  // Add a state for voice input support
-  const [isVoiceInputSupported, setIsVoiceInputSupported] = useState(false);
 
   // Load from localStorage on mount with device-specific demo key
   useEffect(() => {
@@ -103,6 +101,12 @@ export default function ChatDemo() {
         }
         setMessages(messages || []);
         setIsLocked(!!isLocked);
+        
+        // Check if limit is exhausted even on refresh/new session
+        const userTurns = (messages || []).filter((m: Message) => m.isUser).length;
+        if (userTurns >= CHAT_LIMIT && !isLocked) {
+          setIsLocked(true);
+        }
       } catch {
         setTampered(true);
         setIsLocked(true);
@@ -135,6 +139,13 @@ export default function ChatDemo() {
     const textToSend = options?.text || input;
     const inputIsFromVoice = options?.fromVoice || false;
     if (!textToSend.trim() || isLoading || isLocked) return;
+
+    // Check if limit would be exceeded
+    const currentUserTurns = messages.filter((m: Message) => m.isUser).length;
+    if (currentUserTurns >= CHAT_LIMIT) {
+      setIsLocked(true);
+      return;
+    }
 
     // If text was typed, mark input as not from voice
     if (!inputIsFromVoice) {
@@ -175,8 +186,9 @@ export default function ChatDemo() {
         speak(aiResponseText);
       }
 
-      // Lock after 3 user turns
-      if (userTurns + 1 >= CHAT_LIMIT) {
+      // Lock after CHAT_LIMIT user turns
+      const finalUserTurns = currentUserTurns + 1;
+      if (finalUserTurns >= CHAT_LIMIT) {
         setTimeout(() => setIsLocked(true), 1200);
       }
     } catch (error) {
@@ -235,19 +247,88 @@ export default function ChatDemo() {
   const loadVoices = () => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
     const voices = window.speechSynthesis.getVoices();
-    setAvailableVoices(voices.filter(v => v.lang.startsWith('en')))
-    // Default to friendly female
-    const defaultVoice = voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('female'))
-      || voices.find(v => v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha'))
-      || voices.find(v => v.lang.startsWith('en'))
-    if (defaultVoice) setSelectedVoice(defaultVoice.name)
+    
+    if (voices.length === 0) return; // Wait for voices to load
+    
+    // Filter for English voices with priority for female voices
+    const allEnglishVoices = voices.filter(v => v.lang.startsWith('en'));
+    
+    // Prioritize female voices
+    const femaleVoices = allEnglishVoices.filter(voice => {
+      const name = voice.name.toLowerCase();
+      return name.includes('female') || 
+             name.includes('samantha') ||
+             name.includes('karen') ||
+             name.includes('moira') ||
+             name.includes('tessa') ||
+             name.includes('alex') ||
+             name.includes('allison') ||
+             name.includes('ava') ||
+             name.includes('serena') ||
+             name.includes('aria') ||
+             name.includes('emma') ||
+             name.includes('jenny') ||
+             name.includes('google us') ||
+             name.includes('google uk') ||
+             name.includes('samsung') ||
+             name.includes('vicki') ||
+             name.includes('princess') ||
+             name.includes('victoria') ||
+             name.includes('eva') ||
+             name.includes('hazel');
+    });
+    
+    const maleVoices = allEnglishVoices.filter(voice => {
+      const name = voice.name.toLowerCase();
+      return name.includes('male') || 
+             name.includes('david') || 
+             name.includes('mark') || 
+             name.includes('daniel') || 
+             name.includes('tom');
+    });
+    
+    // Combine with female voices first
+    const sortedVoices = [...femaleVoices, ...maleVoices];
+    setAvailableVoices(sortedVoices.length > 0 ? sortedVoices : allEnglishVoices);
+    
+    // Default to best available voice
+    if (!selectedVoice) {
+      const defaultVoice = sortedVoices.find(v => 
+        v.name.toLowerCase().includes('microsoft eva')
+      ) || 
+      sortedVoices.find(v => 
+        v.name.toLowerCase().includes('microsoft hazel')
+      ) || 
+      sortedVoices.find(v => 
+        v.name.toLowerCase().includes('eva')
+      ) || 
+      sortedVoices.find(v => 
+        v.name.toLowerCase().includes('samantha')
+      ) || 
+      sortedVoices.find(v => 
+        v.name.toLowerCase().includes('female')
+      ) || 
+      sortedVoices[0] ||
+      allEnglishVoices[0];
+      
+      if (defaultVoice) setSelectedVoice(defaultVoice.name);
+    }
   }
+  
   useEffect(() => {
     loadVoices();
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.onvoiceschanged = loadVoices;
+      
+      // Multiple fallbacks for voice loading
+      setTimeout(loadVoices, 10);
+      setTimeout(loadVoices, 50);
+      setTimeout(loadVoices, 100);
+      setTimeout(loadVoices, 500);
+      setTimeout(loadVoices, 1000);
     }
-  }, [])
+  }, [selectedVoice])
+  
   useEffect(() => {
     if (isVoiceOutputOn) {
       loadVoices();
@@ -257,13 +338,71 @@ export default function ChatDemo() {
   // For voice output, always use the best available voice
   const speak = (text: string) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    const synth = window.speechSynthesis;
-    let voices = synth.getVoices();
-    let voice = voices.find(v => v.name === selectedVoice) || voices.find(v => v.lang.startsWith('en')) || voices[0];
-    if (!voice) return;
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.voice = voice;
-    synth.speak(utter);
+    
+    try {
+      // Stop any currently playing speech
+      window.speechSynthesis.cancel();
+      
+      // Clean text for better speech synthesis
+      const cleanText = text
+        .replace(/💙/g, ' blue heart ')
+        .replace(/💜/g, ' purple heart ')
+        .replace(/🤗/g, ' hugging face ')
+        .replace(/💯/g, ' hundred points ')
+        .replace(/😊/g, ' smiling face ')
+        .replace(/😢/g, ' sad face ')
+        .replace(/😭/g, ' crying loudly ')
+        .replace(/❤️/g, ' red heart ')
+        .replace(/💕/g, ' two hearts ')
+        .replace(/🥺/g, ' pleading face ')
+        .replace(/😌/g, ' relieved face ')
+        .replace(/🙏/g, ' folded hands ')
+        .replace(/✨/g, ' sparkles ')
+        .replace(/🌟/g, ' star ')
+        .replace(/💖/g, ' sparkling heart ')
+        .replace(/🔥/g, ' fire ')
+        .replace(/💪/g, ' flexed bicep ')
+        .replace(/👍/g, ' thumbs up ')
+        .replace(/👎/g, ' thumbs down ')
+        .replace(/😂/g, ' laughing ')
+        .replace(/🤣/g, ' rolling on floor laughing ');
+      
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      const voices = window.speechSynthesis.getVoices();
+      
+      // Find the selected voice or fallback
+      let chosenVoice = voices.find(v => v.name === selectedVoice);
+      
+      if (!chosenVoice) {
+        // Fallback priority
+        chosenVoice = voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('female')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('eva')
+        ) || 
+        voices.find(v => 
+          v.lang.startsWith('en') && v.name.toLowerCase().includes('samantha')
+        ) || 
+        voices.find(v => v.lang.startsWith('en')) ||
+        voices[0];
+      }
+      
+      if (chosenVoice) utterance.voice = chosenVoice;
+      
+      // Optimized settings
+      utterance.pitch = 1.1;
+      utterance.rate = 0.9;
+      utterance.volume = 0.8;
+      
+      utterance.onerror = (event) => {
+        console.log('Speech synthesis error:', event.error);
+      };
+      
+      window.speechSynthesis.speak(utterance);
+    } catch (error) {
+      console.error('Speech synthesis error:', error);
+    }
   };
 
   const handleMicClick = () => {
@@ -518,40 +657,23 @@ export default function ChatDemo() {
                     checked={isVoiceOutputOn}
                     onCheckedChange={setIsVoiceOutputOn}
                   />
-                  {(user && (isVoiceOutputOn || wasLastInputVoice.current)) && (
+                  {(isVoiceOutputOn || wasLastInputVoice.current) && (
                     availableVoices.length > 0 ? (
                       <select
-                        className="ml-4 bg-[#232946] text-white border border-[#7c3aed] rounded px-2 py-1 text-sm"
+                        className="ml-4 bg-[#232946] text-white border border-[#7c3aed] rounded px-2 py-1 text-sm max-w-[200px] truncate focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
                         value={selectedVoice}
                         onChange={e => setSelectedVoice(e.target.value)}
                       >
                         {availableVoices.map(v => (
-                          <option key={v.name} value={v.name}>{v.name}</option>
+                          <option key={v.name} value={v.name} className="bg-[#232946] text-white">
+                            {v.name.length > 20 ? v.name.substring(0, 20) + '...' : v.name}
+                          </option>
                         ))}
                       </select>
                     ) : (
-                      <span className="ml-4 text-gray-400 text-sm">Loading voices…</span>
+                      <span className="ml-4 text-gray-400 text-sm animate-pulse">🎵 Loading voices...</span>
                     )
                   )}
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <label htmlFor="voice-select" className="text-sm text-gray-300">Voice:</label>
-                  <select
-                    id="voice-select"
-                    className="bg-gray-800 text-white rounded px-2 py-1"
-                    value={selectedVoice}
-                    onChange={e => setSelectedVoice(e.target.value)}
-                  >
-                    {availableVoices.map((voice) => (
-                      <option key={voice.name} value={voice.name}>
-                        {voice.name.toLowerCase().includes('female') || voice.name.toLowerCase().includes('samantha')
-                          ? `${voice.name} (Default Female)`
-                          : voice.name.toLowerCase().includes('male') || voice.name.toLowerCase().includes('daniel')
-                            ? `${voice.name} (Best Male)`
-                            : voice.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
             )}
@@ -573,12 +695,12 @@ export default function ChatDemo() {
             <>Coming soon. You'll be the first to try our voice AI. 💜</>
           )}
         </div>
+        {!isMicSupported && (
+          <div className="text-yellow-400 text-xs text-center font-medium mt-2">
+            Voice input not supported in this browser. Try Chrome, Samsung Internet, or Safari.
+          </div>
+        )}
       </div>
-      {!isVoiceInputSupported && (
-        <div className="text-yellow-400 text-xs text-center font-medium mb-1">
-          If Voice input not supported in this browser. Try Chrome, Samsung Internet, or Safari.
-        </div>
-      )}
     </section>
   )
 }
