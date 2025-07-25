@@ -198,8 +198,8 @@ export default function ChatDemo() {
 
       setMessages((prev: Message[]) => [...prev, aiResponse]);
 
-      // Only speak if voice output is ON or the input was from voice
-      if (isVoiceOutputOn || (wasLastInputVoice.current && inputIsFromVoice)) {
+      // Always speak if input was from voice, or if voice output is ON
+      if (inputIsFromVoice || isVoiceOutputOn) {
         speak(aiResponseText);
       }
 
@@ -459,6 +459,7 @@ export default function ChatDemo() {
       
       const recognition = new SpeechRecognition()
       recognitionRef.current = recognition;
+      recognition.finalTranscript = ''; // Initialize transcript tracking
 
       recognition.lang = 'en-US'
       recognition.interimResults = true
@@ -467,6 +468,7 @@ export default function ChatDemo() {
       recognition.onstart = () => {
         setIsMicActive(true)
         wasLastInputVoice.current = true; // Mark input as voice
+        recognition.finalTranscript = ''; // Reset transcript on start
       }
 
       recognition.onresult = (event: any) => {
@@ -478,7 +480,10 @@ export default function ChatDemo() {
             }
           }
           if (finalTranscript) {
-            setInput(prev => prev + finalTranscript); // Append final results
+            const newInput = input + finalTranscript;
+            setInput(newInput);
+            // Store the final transcript for use in onend
+            recognitionRef.current.finalTranscript = newInput;
           }
         } catch (error) {
           console.warn('Speech recognition result processing error:', error);
@@ -503,12 +508,13 @@ export default function ChatDemo() {
       
       recognition.onend = () => {
         setIsMicActive(false);
-        // Use a timeout to ensure 'input' state is updated before sending
+        // Auto-send the voice input after recognition ends
         setTimeout(() => {
           try {
-            // Use React state instead of DOM query to avoid client-side errors
-            if (input && input.trim().length > 0) {
-              handleSend({ text: input, fromVoice: true });
+            // Use the stored transcript or fallback to current input state
+            const voiceInput = recognitionRef.current?.finalTranscript || input;
+            if (voiceInput && voiceInput.trim().length > 0) {
+              handleSend({ text: voiceInput.trim(), fromVoice: true });
             }
           } catch (error) {
             console.warn('Voice input processing error:', error);
