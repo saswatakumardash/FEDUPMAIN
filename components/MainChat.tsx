@@ -215,6 +215,12 @@ export default function MainChat({ user, onLogout }: {
     const inputIsFromVoice = options?.fromVoice || false;
     if (!textToSend.trim() || isSending) return;
     if (!user || !db) return;
+    
+    // If text was typed, mark input as not from voice
+    if (!inputIsFromVoice) {
+      wasLastInputVoice.current = false;
+    }
+    
     setIsSending(true);
     try {
       const dbInstance = db as import('firebase/firestore').Firestore;
@@ -291,8 +297,13 @@ export default function MainChat({ user, onLogout }: {
         isUser: false,
       };
       await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), aiResponse);
-      if (isVoiceEnabled || wasLastInputVoice.current || inputIsFromVoice) {
+      // Only speak if voice mode is ON or the input was from voice
+      if (isVoiceEnabled || (wasLastInputVoice.current && inputIsFromVoice)) {
         speak(aiResponseText);
+      }
+      // Reset voice flag after use if it was from voice input
+      if (inputIsFromVoice) {
+        wasLastInputVoice.current = false;
       }
     } catch (error) {
       // Optionally show error UI
@@ -540,7 +551,7 @@ export default function MainChat({ user, onLogout }: {
 
   const speak = (text: string) => {
     if (!window.speechSynthesis) return;
-    if (!isVoiceEnabled && !wasLastInputVoice.current) return;
+    // Only speak if voice mode is enabled (the calling function already handles the logic)
     
     try {
       // Stop any currently playing speech
@@ -965,7 +976,8 @@ export default function MainChat({ user, onLogout }: {
                     >
                       {new Date().toLocaleTimeString([], { 
                         hour: '2-digit', 
-                        minute: '2-digit'
+                        minute: '2-digit',
+                        timeZone: 'Asia/Kolkata'
                       })}
                     </div>
                   </div>

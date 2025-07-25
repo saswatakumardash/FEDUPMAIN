@@ -182,8 +182,14 @@ export default function ChatDemo() {
 
       setMessages((prev: Message[]) => [...prev, aiResponse]);
 
-      if (isVoiceOutputOn || wasLastInputVoice.current) {
+      // Only speak if voice output is ON or the input was from voice
+      if (isVoiceOutputOn || (wasLastInputVoice.current && inputIsFromVoice)) {
         speak(aiResponseText);
+      }
+
+      // Reset voice flag after use if it was from voice input
+      if (inputIsFromVoice) {
+        wasLastInputVoice.current = false;
       }
 
       // Lock after CHAT_LIMIT user turns
@@ -556,6 +562,17 @@ export default function ChatDemo() {
                       whileHover={message.isUser ? { scale: 1.04, boxShadow: "0 2px 32px 0 #ec4899cc" } : {}}
                     >
                       {message.text}
+                      <div 
+                        className={`text-xs text-gray-300 opacity-60 ${
+                          message.isUser ? "text-right" : "text-left"
+                        } mt-1`}
+                      >
+                        {new Date().toLocaleTimeString([], { 
+                          hour: '2-digit', 
+                          minute: '2-digit',
+                          timeZone: 'Asia/Kolkata'
+                        })}
+                      </div>
                     </motion.div>
                   </motion.div>
                 ))}
