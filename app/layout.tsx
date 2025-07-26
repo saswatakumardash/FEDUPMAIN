@@ -9,11 +9,11 @@ import PushNotificationManager from "@/components/PushNotificationManager"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "FED UP – AI for the emotionally tired",
+  title: "FED UP",
   description: "A supportive, emotionally intelligent AI for when you're fed up. Join the waitlist for early access.",
   manifest: "/manifest.json",
   openGraph: {
-    title: "FED UP – AI for the emotionally tired",
+    title: "FED UP",
     description: "A supportive, emotionally intelligent AI for when you're fed up. Join the waitlist for early access.",
     images: [
       {
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "FED UP – AI for the emotionally tired",
+    title: "FED UP",
     description: "A supportive, emotionally intelligent AI for when you're fed up. Join the waitlist for early access.",
     images: [
       {
