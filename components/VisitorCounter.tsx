@@ -13,25 +13,20 @@ export default function VisitorCounter({ className = "" }: VisitorCounterProps) 
   useEffect(() => {
     const handleVisitorCount = async () => {
       try {
-        // Check if user has already been counted in this session
-        const hasVisited = sessionStorage.getItem('fedup_visitor_counted')
+        // Always try to increment - let the server decide if it should count
+        const response = await fetch('/api/visitor-count', {
+          method: 'POST',
+        })
+        const data = await response.json()
+        setCount(data.count)
         
-        if (!hasVisited) {
-          // First visit in this session - try to increment count
-          const response = await fetch('/api/visitor-count', {
-            method: 'POST',
-          })
-          const data = await response.json()
-          setCount(data.count)
-          
-          // Mark as visited in this session regardless of whether they were a new visitor
-          sessionStorage.setItem('fedup_visitor_counted', 'true')
+        // For debugging - log if this was a new visitor
+        if (data.newVisitor) {
+          console.log('New visitor counted!')
         } else {
-          // Already counted in this session - just get current count
-          const response = await fetch('/api/visitor-count')
-          const data = await response.json()
-          setCount(data.count)
+          console.log('Existing visitor - count not incremented')
         }
+        
       } catch (error) {
         console.error('Error handling visitor count:', error)
         // Fallback to just getting the current count
