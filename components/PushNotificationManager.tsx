@@ -67,6 +67,11 @@ export default function PushNotificationManager() {
       if (result === 'granted') {
         sendWelcomeNotification()
         setupReminderNotifications()
+        
+        // Show a quick success message
+        setTimeout(() => {
+          sendBrowserNotification('🎉 Notifications Enabled!', 'Perfect! You\'ll now get friendly check-ins every 2 hours. Hey wassup! 💜')
+        }, 2000)
       }
     } catch (error) {
       console.error('Error requesting notification permission:', error)
@@ -78,9 +83,11 @@ export default function PushNotificationManager() {
     
     const message = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)]
     
-    // Send both browser notification and service worker notification
-    sendBrowserNotification('FED UP - Your Bestie 💜', message)
-    sendServiceWorkerNotification('Welcome back!', message)
+    // Send immediate welcome notification
+    setTimeout(() => {
+      sendBrowserNotification('FED UP - Your Bestie 💜', message)
+      sendServiceWorkerNotification('Welcome back!', message)
+    }, 1000) // Small delay to ensure everything is ready
   }
 
   const sendBrowserNotification = (title: string, body: string) => {
@@ -219,31 +226,6 @@ export default function PushNotificationManager() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Notification Status Indicator */}
-      {permission === 'granted' && (
-        <div className="fixed bottom-4 right-4 z-40">
-          <motion.div
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-green-500/20 border border-green-500/30 rounded-full p-2 backdrop-blur-sm"
-          >
-            <Bell className="h-4 w-4 text-green-400" />
-          </motion.div>
-        </div>
-      )}
-
-      {permission === 'denied' && (
-        <div className="fixed bottom-4 right-4 z-40">
-          <motion.div
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-orange-500/20 border border-orange-500/30 rounded-full p-2 backdrop-blur-sm"
-          >
-            <BellOff className="h-4 w-4 text-orange-400" />
-          </motion.div>
-        </div>
-      )}
     </>
   )
 }
