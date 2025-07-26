@@ -31,30 +31,36 @@ export default function AppComparison() {
   }, [])
 
   const handleDownloadAPK = () => {
-    // Check if APK is available in public folder
-    const apkUrl = '/fedup-app.apk' // You can change this filename when you add the APK
+    // Silently redirect to web app if APK not available
+    const apkUrl = '/fedup-app.apk'
     
-    // Try to download APK, if not available show coming soon
-    const link = document.createElement('a')
-    link.href = apkUrl
-    link.download = 'FedUp-App.apk'
-    
-    // Check if APK exists
+    // Check if APK exists, if not redirect to PWA install
     fetch(apkUrl, { method: 'HEAD' })
       .then(response => {
         if (response.ok) {
           // APK exists, start download
+          const link = document.createElement('a')
+          link.href = apkUrl
+          link.download = 'FedUp-App.apk'
           document.body.appendChild(link)
           link.click()
           document.body.removeChild(link)
         } else {
-          // APK not found, show coming soon message
-          alert('Android APK is coming soon! 📱\n\nFor now, you can:\n• Add to Home Screen from your browser\n• Use the PWA install feature\n\nStay tuned for the Android app release!')
+          // APK not found, redirect to web app
+          if (isInstallable && deferredPrompt) {
+            handleUseWebApp()
+          } else {
+            window.location.href = '/chat'
+          }
         }
       })
       .catch(() => {
-        // APK not found, show coming soon message
-        alert('Android APK is coming soon! 📱\n\nFor now, you can:\n• Add to Home Screen from your browser\n• Use the PWA install feature\n\nStay tuned for the Android app release!')
+        // APK not found, redirect to web app
+        if (isInstallable && deferredPrompt) {
+          handleUseWebApp()
+        } else {
+          window.location.href = '/chat'
+        }
       })
   }
 

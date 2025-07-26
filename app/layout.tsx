@@ -4,6 +4,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import BackgroundAnimation from "@/components/BackgroundAnimation"
+import PushNotificationManager from "@/components/PushNotificationManager"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -73,6 +74,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <BackgroundAnimation />
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange={false}>
+          <PushNotificationManager />
           {children}
         </ThemeProvider>
       </body>
