@@ -13,7 +13,7 @@ import EmojiGlobe from "./EmojiGlobe"
 import BackgroundAnimation from "./BackgroundAnimation"
 import FileUpload from "./FileUpload"
 import LimitReachedModal from "./LimitReachedModal"
-import PWAInstallNotification from "./PWAInstallNotification"
+
 import ReminderNotification from "./ReminderNotification"
 import MessageRenderer from "./MessageRenderer"
 import { db } from "@/lib/firebase";
