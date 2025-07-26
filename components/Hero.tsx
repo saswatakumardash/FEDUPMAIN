@@ -4,11 +4,17 @@ import { motion } from "framer-motion"
 import EmojiGlobe from "./EmojiGlobe"
 import WaitlistForm from "./WaitlistForm"
 import PWAInstallButton from "./PWAInstallButton"
+import VisitorCounter from "./VisitorCounter"
 
 
 export default function Hero() {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center bg-[#10131a] w-full overflow-hidden">
+      {/* Visitor Counter - positioned in top right */}
+      <div className="absolute top-6 right-6 z-50">
+        <VisitorCounter />
+      </div>
+      
       {/* Glowing animated background, now more to the left */}
       <motion.div
         initial={{ opacity: 0 }}
