@@ -13,7 +13,6 @@ import EmojiGlobe from "./EmojiGlobe"
 import BackgroundAnimation from "./BackgroundAnimation"
 import FileUpload from "./FileUpload"
 import LimitReachedModal from "./LimitReachedModal"
-import PWAInstallNotification from "./PWAInstallNotification"
 import ReminderNotification from "./ReminderNotification"
 import MessageRenderer from "./MessageRenderer"
 import { db } from "@/lib/firebase";
@@ -86,7 +85,7 @@ export default function MainChat({ user, onLogout }: {
   const [userPlan, setUserPlan] = useState<'free' | 'pro' | 'premium'>('free')
   
   // New notification features
-  const [showPWAInstallPrompt, setShowPWAInstallPrompt] = useState(false)
+
   const [lastReminderTime, setLastReminderTime] = useState<number>(0)
   const [showReminder, setShowReminder] = useState(false)
   
@@ -150,12 +149,6 @@ export default function MainChat({ user, onLogout }: {
 
     // Load notification preferences - removed hide limits feature
     
-    // Check for PWA install prompt (show after login)
-    const hasSeenPWA = localStorage.getItem(`fedup-pwa-seen-${user.uid}`) === 'true'
-    if (!hasSeenPWA) {
-      setTimeout(() => setShowPWAInstallPrompt(true), 3000) // Show after 3 seconds
-    }
-
     // Load last reminder time
     const lastReminder = localStorage.getItem(`fedup-last-reminder-${user.uid}`)
     if (lastReminder) {
@@ -1294,17 +1287,6 @@ export default function MainChat({ user, onLogout }: {
           </div>
         </div>
       </div>
-
-      {/* PWA Install Notification */}
-      <PWAInstallNotification
-        isOpen={showPWAInstallPrompt}
-        onClose={() => setShowPWAInstallPrompt(false)}
-        onDismiss={() => {
-          setShowPWAInstallPrompt(false)
-          localStorage.setItem(`fedup-pwa-seen-${user.uid}`, 'true')
-        }}
-        userName={user.name?.split(' ')[0] || "friend"}
-      />
 
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
