@@ -11,16 +11,29 @@ export default function VisitorCounter({ className = "" }: VisitorCounterProps) 
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Increment visitor count when component mounts
-    const incrementVisitor = async () => {
+    const handleVisitorCount = async () => {
       try {
-        const response = await fetch('/api/visitor-count', {
-          method: 'POST',
-        })
-        const data = await response.json()
-        setCount(data.count)
+        // Check if user has already been counted in this session
+        const hasVisited = sessionStorage.getItem('fedup_visitor_counted')
+        
+        if (!hasVisited) {
+          // First visit in this session - try to increment count
+          const response = await fetch('/api/visitor-count', {
+            method: 'POST',
+          })
+          const data = await response.json()
+          setCount(data.count)
+          
+          // Mark as visited in this session regardless of whether they were a new visitor
+          sessionStorage.setItem('fedup_visitor_counted', 'true')
+        } else {
+          // Already counted in this session - just get current count
+          const response = await fetch('/api/visitor-count')
+          const data = await response.json()
+          setCount(data.count)
+        }
       } catch (error) {
-        console.error('Error incrementing visitor count:', error)
+        console.error('Error handling visitor count:', error)
         // Fallback to just getting the current count
         try {
           const response = await fetch('/api/visitor-count')
@@ -35,7 +48,7 @@ export default function VisitorCounter({ className = "" }: VisitorCounterProps) 
       }
     }
 
-    incrementVisitor()
+    handleVisitorCount()
   }, [])
 
   if (loading) {
