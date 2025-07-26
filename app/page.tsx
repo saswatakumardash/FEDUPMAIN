@@ -6,6 +6,7 @@ import { auth } from "@/lib/firebase"
 import Hero from "@/components/Hero"
 import AboutFedUp from "@/components/AboutFedUp"
 import Difference from "@/components/Difference"
+import AppComparison from "@/components/AppComparison"
 import Footer from "@/components/Footer"
 
 export default function Home() {
@@ -33,6 +34,7 @@ export default function Home() {
         <Hero />
         <AboutFedUp />
         <Difference />
+        <AppComparison />
         <Footer />
       </main>
     </div>

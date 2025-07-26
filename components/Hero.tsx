@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import EmojiGlobe from "./EmojiGlobe"
 import WaitlistForm from "./WaitlistForm"
+import PWAInstallButton from "./PWAInstallButton"
 
 
 export default function Hero() {
@@ -66,12 +67,13 @@ export default function Hero() {
             <EmojiGlobe />
           </div>
           <motion.div
-            className="w-full max-w-lg flex flex-col items-center md:max-w-[52%] xl:max-w-[56%] 2xl:max-w-[60%]"
+            className="w-full max-w-lg flex flex-col items-center md:max-w-[52%] xl:max-w-[56%] 2xl:max-w-[60%] space-y-6"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.7, type: "spring" }}
           >
             <WaitlistForm />
+            <PWAInstallButton />
           </motion.div>
         </motion.div>
       </div>

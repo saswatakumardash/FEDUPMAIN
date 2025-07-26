@@ -4,13 +4,18 @@ import { useState, useRef, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Send, Loader2, Mic, PhoneCall, LogOut, Settings } from "lucide-react"
+import { Send, Loader2, Mic, PhoneCall, LogOut, Settings, X, Copy, Plus, RotateCcw, Heart, Briefcase } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import LoadingTransition from "./LoadingTransition"
 import EmotionalBackground from "./EmotionalBackground"
 import EmojiGlobe from "./EmojiGlobe"
 import BackgroundAnimation from "./BackgroundAnimation"
+import FileUpload from "./FileUpload"
+import LimitReachedModal from "./LimitReachedModal"
+import PWAInstallNotification from "./PWAInstallNotification"
+import ReminderNotification from "./ReminderNotification"
+import MessageRenderer from "./MessageRenderer"
 import { db } from "@/lib/firebase";
 import {
   collection,
@@ -71,6 +76,56 @@ export default function MainChat({ user, onLogout }: {
   // 1. WhatsApp-style hold-to-record mic button
   // Add state for recording
   const [isRecording, setIsRecording] = useState(false);
+  
+  // v1.1 Beta features
+  const [chatMode, setChatMode] = useState<'professional' | 'bestie'>('bestie')
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [showFileUpload, setShowFileUpload] = useState(false)
+  const [monthlyMessageCount, setMonthlyMessageCount] = useState(0)
+  const [showLimitModal, setShowLimitModal] = useState(false)
+  const [userPlan, setUserPlan] = useState<'free' | 'pro' | 'premium'>('free')
+  
+  // New notification features
+  const [showPWAInstallPrompt, setShowPWAInstallPrompt] = useState(false)
+  const [lastReminderTime, setLastReminderTime] = useState<number>(0)
+  const [showReminder, setShowReminder] = useState(false)
+  
+  // Monthly limits
+  const MONTHLY_FREE_LIMIT = 150
+
+  // New handlers for v1.1 features
+  const handleFileSelect = (files: File[]) => {
+    setSelectedFiles(prev => [...prev, ...files])
+  }
+
+  const handleFileRemove = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const checkMonthlyLimit = () => {
+    if (userPlan === 'free' && monthlyMessageCount >= MONTHLY_FREE_LIMIT) {
+      setShowLimitModal(true)
+      return false
+    }
+    return true
+  }
+
+  const incrementMonthlyCount = () => {
+    if (userPlan === 'free') {
+      const currentMonth = new Date().getMonth() + '-' + new Date().getFullYear()
+      const storedMonth = localStorage.getItem(`fedup-last-month-${user.uid}`)
+      
+      if (storedMonth !== currentMonth) {
+        setMonthlyMessageCount(1)
+        localStorage.setItem(`fedup-last-month-${user.uid}`, currentMonth)
+        localStorage.setItem(`fedup-monthly-count-${user.uid}`, '1')
+      } else {
+        const newCount = monthlyMessageCount + 1
+        setMonthlyMessageCount(newCount)
+        localStorage.setItem(`fedup-monthly-count-${user.uid}`, newCount.toString())
+      }
+    }
+  }
 
   // Detect mobile device
   useEffect(() => {
@@ -79,7 +134,52 @@ export default function MainChat({ user, onLogout }: {
       setIsMobile(mobile);
     };
     checkMobile();
-  }, []);
+    
+    // Load monthly count on component mount
+    const currentMonth = new Date().getMonth() + '-' + new Date().getFullYear()
+    const storedMonth = localStorage.getItem(`fedup-last-month-${user.uid}`)
+    const storedCount = localStorage.getItem(`fedup-monthly-count-${user.uid}`)
+    
+    if (storedMonth === currentMonth && storedCount) {
+      setMonthlyMessageCount(parseInt(storedCount))
+    } else {
+      setMonthlyMessageCount(0)
+      localStorage.setItem(`fedup-last-month-${user.uid}`, currentMonth)
+      localStorage.setItem(`fedup-monthly-count-${user.uid}`, '0')
+    }
+
+    // Load notification preferences - removed hide limits feature
+    
+    // Check for PWA install prompt (show after login)
+    const hasSeenPWA = localStorage.getItem(`fedup-pwa-seen-${user.uid}`) === 'true'
+    if (!hasSeenPWA) {
+      setTimeout(() => setShowPWAInstallPrompt(true), 3000) // Show after 3 seconds
+    }
+
+    // Load last reminder time
+    const lastReminder = localStorage.getItem(`fedup-last-reminder-${user.uid}`)
+    if (lastReminder) {
+      setLastReminderTime(parseInt(lastReminder))
+    }
+  }, [user.uid]);
+
+  // 2-hour reminder logic
+  useEffect(() => {
+    const checkReminder = () => {
+      const now = Date.now()
+      const twoHours = 2 * 60 * 60 * 1000 // 2 hours in milliseconds
+      
+      if (lastReminderTime === 0 || (now - lastReminderTime) >= twoHours) {
+        setShowReminder(true)
+        setLastReminderTime(now)
+        localStorage.setItem(`fedup-last-reminder-${user.uid}`, now.toString())
+      }
+    }
+
+    // Check every minute
+    const interval = setInterval(checkReminder, 60000)
+    return () => clearInterval(interval)
+  }, [lastReminderTime, user.uid])
 
   // Create user-specific storage keys
   const CHAT_STATS_KEY = `fedup-chat-stats-${user.uid}`
@@ -95,22 +195,38 @@ export default function MainChat({ user, onLogout }: {
     
     let welcomeMessages = []
     
-    if (isReturningUser) {
-      // Returning user messages
-      welcomeMessages = [
-        `Hey bestie ${user.name?.split(' ')[0] || "friend"}, welcome back! Wassup? 💙`,
-        `Yooo ${user.name?.split(' ')[0] || "friend"}! You're back! What's been going on? 💜`,
-        `Hey ${user.name?.split(' ')[0] || "friend"}! Good to see you again! What's on your mind? 🤗`,
-        `Sup ${user.name?.split(' ')[0] || "friend"}! Missed you bestie! Ready to catch up? 💯`
-      ]
+    if (chatMode === 'professional') {
+      // Professional mode welcome messages
+      if (isReturningUser) {
+        welcomeMessages = [
+          `Welcome back ${user.name?.split(' ')[0] || "there"}! Ready to tackle some work challenges? 💼`,
+          `Hey ${user.name?.split(' ')[0] || "there"}! Good to see you again. What professional goals are we working on today? 🚀`,
+          `${user.name?.split(' ')[0] || "Hello"}! Back for more productivity? Let's make things happen! 💻`
+        ]
+      } else {
+        welcomeMessages = [
+          `Hey ${user.name?.split(' ')[0] || "there"}! I'm your professional assistant. Ready to work on some coding, career, or startup challenges? 💼`,
+          `Welcome ${user.name?.split(' ')[0] || "friend"}! Let's dive into some professional development, coding projects, or career planning! 🚀`,
+          `Hi ${user.name?.split(' ')[0] || "there"}! I'm here to help with work, coding, college projects, and professional growth. What can we build today? 💻`
+        ]
+      }
     } else {
-      // First time or recent user messages - ALWAYS show for login/reload/revisit
-      welcomeMessages = [
-        `Hey wassup best friend ${user.name?.split(' ')[0] || "bestie"}! 💙`,
-        `Yooo ${user.name?.split(' ')[0] || "bestie"}! What's good? I'm here for you best friend 💜`,
-        `Hey ${user.name?.split(' ')[0] || "bestie"}! What's on your mind today best friend? I'm all ears 🤗`,
-        `Sup ${user.name?.split(' ')[0] || "bestie"}! Ready to spill the tea best friend? I'm here for whatever you need 💯`
-      ]
+      // Bestie mode welcome messages
+      if (isReturningUser) {
+        welcomeMessages = [
+          `Hey bestie ${user.name?.split(' ')[0] || "friend"}, welcome back! Wassup? 💙`,
+          `Yooo ${user.name?.split(' ')[0] || "friend"}! You're back! What's been going on? 💜`,
+          `Hey ${user.name?.split(' ')[0] || "friend"}! Good to see you again! What's on your mind? 🤗`,
+          `Sup ${user.name?.split(' ')[0] || "friend"}! Missed you bestie! Ready to catch up? 💯`
+        ]
+      } else {
+        welcomeMessages = [
+          `Hey wassup best friend ${user.name?.split(' ')[0] || "bestie"}! 💙`,
+          `Yooo ${user.name?.split(' ')[0] || "bestie"}! What's good? I'm here for you best friend 💜`,
+          `Hey ${user.name?.split(' ')[0] || "bestie"}! What's on your mind today best friend? I'm all ears 🤗`,
+          `Sup ${user.name?.split(' ')[0] || "bestie"}! Ready to spill the tea best friend? I'm here for whatever you need 💯`
+        ]
+      }
     }
     
     const randomWelcome = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)]
@@ -136,12 +252,17 @@ export default function MainChat({ user, onLogout }: {
     const fetchData = async () => {
       setShowLoading(true);
       try {
-        // Fetch turn counts
+        // Fetch turn counts and user settings
         const userDoc = await getDoc(doc(dbInstance, "userStats", user.uid));
         if (userDoc.exists()) {
           const data = userDoc.data();
           setUserTurns(data.userTurns || 0);
           setVoiceUserTurns(data.voiceUserTurns || 0);
+          
+          // Restore user settings from Firestore for cross-device sync
+          if (data.chatMode) setChatMode(data.chatMode);
+          if (data.isVoiceEnabled !== undefined) setIsVoiceEnabled(data.isVoiceEnabled);
+          if (data.selectedVoice) setSelectedVoice(data.selectedVoice);
         } else {
           setUserTurns(0);
           setVoiceUserTurns(0);
@@ -191,12 +312,21 @@ export default function MainChat({ user, onLogout }: {
     if (!textToSend.trim() || isSending) return;
     if (!user || !db) return;
     
+    // Check monthly limit for free users
+    if (!checkMonthlyLimit()) {
+      return;
+    }
+    
     // If text was typed, mark input as not from voice
     if (!inputIsFromVoice) {
       wasLastInputVoice.current = false;
     }
     
     setIsSending(true);
+    
+    // Increment monthly count for free users
+    incrementMonthlyCount();
+    
     try {
       const dbInstance = db as import('firebase/firestore').Firestore;
       // Get current turn counts from Firestore
@@ -209,14 +339,14 @@ export default function MainChat({ user, onLogout }: {
         newUserTurns = (data.userTurns || 0) + 1;
         newVoiceUserTurns = inputIsFromVoice ? (data.voiceUserTurns || 0) + 1 : (data.voiceUserTurns || 0);
       }
-      // Check limits - 120 total messages per month, 80 voice messages max
+      // Check limits - 150 total messages per month, 80 voice messages max
       if (user.provider === "google") {
-        if (newUserTurns > 120) {
+        if (newUserTurns > 150) {
           setIsSending(false);
           // Show limit reached message
           const limitMessage: Message = {
             id: Date.now(),
-            text: `Hey bestie ${user.name?.split(' ')[0] || "friend"}, you've reached your monthly message limit of 120! 📱✨ For unlimited chatting and higher limits, please contact support@skds.site for pricing. We're here to help! 💜`,
+            text: `Hey bestie ${user.name?.split(' ')[0] || "friend"}, you've reached your monthly message limit of 150! 📱✨ For unlimited chatting and higher limits, please contact contact@skds.site for pricing. We're here to help! 💜`,
             isUser: false
           };
           await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), limitMessage);
@@ -227,17 +357,21 @@ export default function MainChat({ user, onLogout }: {
           // Show voice limit reached message
           const voiceLimitMessage: Message = {
             id: Date.now(),
-            text: `Hey ${user.name?.split(' ')[0] || "bestie"}, you've used all 80 voice messages for this month! 🎙️✨ For unlimited voice chat and higher limits, please contact support@skds.site for pricing. Text messages still work! 💙`,
+            text: `Hey ${user.name?.split(' ')[0] || "bestie"}, you've used all 80 voice messages for this month! 🎙️✨ For unlimited voice chat and higher limits, please contact contact@skds.site for pricing. Text messages still work! 💙`,
             isUser: false
           };
           await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), voiceLimitMessage);
           return;
         }
       }
-      // Update counters in Firestore
+      // Update counters and settings in Firestore
       await setDoc(userDocRef, {
         userTurns: newUserTurns,
-        voiceUserTurns: newVoiceUserTurns
+        voiceUserTurns: newVoiceUserTurns,
+        chatMode: chatMode,
+        isVoiceEnabled: isVoiceEnabled,
+        selectedVoice: selectedVoice,
+        lastActiveTime: Date.now()
       }, { merge: true });
       setUserTurns(newUserTurns);
       if (inputIsFromVoice) setVoiceUserTurns(newVoiceUserTurns);
@@ -249,22 +383,50 @@ export default function MainChat({ user, onLogout }: {
       };
       await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), userMessage);
       setInput("");
-      // Fetch AI response
+      // Fetch AI response based on chat mode
       const conversationHistory = [...messages, userMessage].map((m) => `${m.isUser ? "User" : "FED UP"}: ${m.text}`);
-      let aiResponseText = "Hey, I'm here for you. What's going on?";
+      let aiResponseText = chatMode === 'professional' 
+        ? "I'm here to help with your professional goals and coding challenges. What can I assist you with?"
+        : "Hey, I'm here for you. What's going on?";
+      
       try {
-        const res = await fetch("/api/gemini", {
+        // Use different API endpoints based on chat mode
+        const apiEndpoint = chatMode === 'professional' ? "/api/gemini-demo" : "/api/gemini";
+        const res = await fetch(apiEndpoint, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-API-Type": "main-chat"
+            "X-API-Type": chatMode === 'professional' ? "professional-chat" : "main-chat"
           },
-          body: JSON.stringify({ message: textToSend, conversationHistory }),
+          body: JSON.stringify({ 
+            message: textToSend, 
+            conversationHistory,
+            mode: chatMode 
+          }),
         });
         const data = await res.json();
         aiResponseText = data.response || aiResponseText;
       } catch (error) {
-        // Optionally show error UI
+        // Fallback - if one API fails, try the other
+        try {
+          const fallbackEndpoint = chatMode === 'professional' ? "/api/gemini" : "/api/gemini-demo";
+          const fallbackRes = await fetch(fallbackEndpoint, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-Type": "fallback-chat"
+            },
+            body: JSON.stringify({ 
+              message: textToSend, 
+              conversationHistory,
+              mode: chatMode 
+            }),
+          });
+          const fallbackData = await fallbackRes.json();
+          aiResponseText = fallbackData.response || aiResponseText;
+        } catch (fallbackError) {
+          // Use default response
+        }
       }
       const aiResponse: Message = {
         id: Date.now() + 1,
@@ -272,13 +434,19 @@ export default function MainChat({ user, onLogout }: {
         isUser: false,
       };
       await addDoc(collection(dbInstance, "userChats", user.uid, "messages"), aiResponse);
-      // Only speak if voice mode is ON or the input was from voice
-      if (isVoiceEnabled || (wasLastInputVoice.current && inputIsFromVoice)) {
+      // For bestie mode: voice input ALWAYS triggers voice output
+      // For professional mode: only if voice mode is enabled
+      const shouldSpeak = chatMode === 'bestie' 
+        ? (inputIsFromVoice || wasLastInputVoice.current || isVoiceEnabled)
+        : isVoiceEnabled;
+        
+      if (shouldSpeak) {
         speak(aiResponseText);
       }
-      // Reset voice flag after use if it was from voice input
-      if (inputIsFromVoice) {
-        wasLastInputVoice.current = false;
+      
+      // Update voice input tracking for bestie mode
+      if (inputIsFromVoice && chatMode === 'bestie') {
+        wasLastInputVoice.current = true;
       }
     } catch (error) {
       // Optionally show error UI
@@ -287,6 +455,32 @@ export default function MainChat({ user, onLogout }: {
       sessionStorage.setItem('lastActiveTime', Date.now().toString());
     }
   };
+
+  // Sync user settings to Firestore for cross-device compatibility
+  const syncSettingsToFirestore = async () => {
+    if (!user || !db) return;
+    
+    try {
+      const dbInstance = db as import('firebase/firestore').Firestore;
+      const userDocRef = doc(dbInstance, "userStats", user.uid);
+      
+      await setDoc(userDocRef, {
+        chatMode: chatMode,
+        isVoiceEnabled: isVoiceEnabled,
+        selectedVoice: selectedVoice,
+        lastUpdated: Date.now()
+      }, { merge: true });
+    } catch (error) {
+      console.error('Failed to sync settings to Firestore:', error);
+    }
+  };
+
+  // Sync settings to Firestore when they change
+  useEffect(() => {
+    if (user) {
+      syncSettingsToFirestore();
+    }
+  }, [chatMode, isVoiceEnabled, selectedVoice, user]);
 
   // On delete, remove all chat data but NEVER reset turn counts (limits are persistent)
   const handleDeleteAll = async () => {
@@ -318,14 +512,11 @@ export default function MainChat({ user, onLogout }: {
       if (showSettings && !target.closest('.settings-button') && !target.closest('.settings-menu')) {
         setShowSettings(false)
       }
-      if (showDeleteConfirm && !target.closest('.delete-button') && !target.closest('.delete-menu')) {
-        setShowDeleteConfirm(false)
-      }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [showSettings, showDeleteConfirm])
+  }, [showSettings])
 
   // Auto scroll to bottom
   useEffect(() => {
@@ -772,6 +963,15 @@ export default function MainChat({ user, onLogout }: {
             <p className="text-gray-400 text-xs sm:text-base truncate">
               Hey {user.name?.split(' ')[0] || "friend"}, I'm here for you
             </p>
+            <div className="flex items-center justify-center gap-2 mt-1">
+              <div className={`px-2 py-0.5 rounded-full text-xs ${
+                chatMode === 'bestie' 
+                  ? 'bg-purple-500/20 text-purple-300' 
+                  : 'bg-blue-500/20 text-blue-300'
+              }`}>
+                {chatMode === 'bestie' ? '💜 Bestie Mode' : '💼 Professional Mode'}
+              </div>
+            </div>
           </div>
 
           <div className="flex items-center gap-1 sm:gap-4">
@@ -779,46 +979,80 @@ export default function MainChat({ user, onLogout }: {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-gray-400 hover:text-red-400 delete-button h-8 w-8 sm:h-10 sm:w-10"
-                onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
-                title="Delete chat history"
+                className="text-gray-400 hover:text-white settings-button h-8 w-8 sm:h-10 sm:w-10"
+                onClick={() => setShowSettings(!showSettings)}
+                title="Settings"
               >
-                <svg 
-                  xmlns="http://www.w3.org/2000/svg" 
-                  viewBox="0 0 24 24" 
-                  fill="none" 
-                  stroke="currentColor" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  className="w-4 h-4 sm:w-5 sm:h-5"
-                >
-                  <path d="M3 6h18"></path>
-                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
-                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
-                </svg>
+                <Settings className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
-              {showDeleteConfirm && (
-                <div className="delete-menu absolute right-0 mt-2 w-64 sm:w-64 rounded-lg bg-[#1E2128] border border-[#2A2F3A] shadow-lg z-50">
-                  <div className="p-3 sm:p-4 space-y-3">
-                    <h4 className="text-sm font-medium text-white">Delete chat history?</h4>
-                    <p className="text-xs text-gray-400">This will permanently delete all messages in this conversation.</p>
-                    <div className="flex justify-between gap-2 pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-gray-400 hover:text-white bg-transparent border-gray-700 hover:bg-gray-800 flex-1"
-                        onClick={() => setShowDeleteConfirm(false)}
-                      >
-                        Cancel
-                      </Button>
+              {showSettings && (
+                <div className="settings-menu absolute right-0 mt-2 w-80 sm:w-96 rounded-lg bg-[#1E2128] border border-[#2A2F3A] shadow-lg z-50">
+                  <div className="p-4 space-y-4">
+                    <h4 className="text-sm font-medium text-white border-b border-[#2A2F3A] pb-2">Settings</h4>
+                    
+                    {/* Chat Mode Selector */}
+                    <div className="space-y-3">
+                      <h5 className="text-xs font-medium text-gray-300">Chat Mode</h5>
+                      <div className="grid gap-2">
+                        <Button
+                          onClick={() => {
+                            setChatMode('bestie')
+                            setShowSettings(false)
+                          }}
+                          className={`w-full justify-start text-left ${
+                            chatMode === 'bestie' 
+                              ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                              : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                          }`}
+                        >
+                          <Heart className="w-4 h-4 mr-2" />
+                          💜 Bestie Mode
+                          <span className="ml-auto text-xs opacity-75">Emotional Support</span>
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setChatMode('professional')
+                            setShowSettings(false)
+                          }}
+                          className={`w-full justify-start text-left ${
+                            chatMode === 'professional' 
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                              : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                          }`}
+                        >
+                          <Briefcase className="w-4 h-4 mr-2" />
+                          💼 Professional Mode  
+                          <span className="ml-auto text-xs opacity-75">Work & Coding</span>
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Delete Chat Section */}
+                    <div className="space-y-3 border-t border-[#2A2F3A] pt-3">
+                      <h5 className="text-xs font-medium text-gray-300">Chat Management</h5>
                       <Button
                         variant="destructive"
-                        size="sm"
-                        className="bg-red-600 hover:bg-red-700 text-white flex-1"
-                        onClick={handleDeleteAll}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white"
+                        onClick={() => {
+                          setShowDeleteConfirm(true)
+                          setShowSettings(false)
+                        }}
                       >
-                        Delete
+                        <svg 
+                          xmlns="http://www.w3.org/2000/svg" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="2" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          className="w-4 h-4 mr-2"
+                        >
+                          <path d="M3 6h18"></path>
+                          <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                          <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        </svg>
+                        Delete Chat History
                       </Button>
                     </div>
                   </div>
@@ -844,6 +1078,23 @@ export default function MainChat({ user, onLogout }: {
 
       {/* Main Chat Area */}
       <div className="pt-16 sm:pt-20 pb-36 sm:pb-40 px-2 sm:px-4 max-w-6xl mx-auto">
+        {/* File Upload Area */}
+        {showFileUpload && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-6"
+          >
+            <FileUpload
+              selectedFiles={selectedFiles}
+              onFileSelect={handleFileSelect}
+              onFileRemove={handleFileRemove}
+              disabled={isSending}
+            />
+          </motion.div>
+        )}
+        
         <div className="space-y-3 sm:space-y-4">
           <AnimatePresence>
             {messages.map((message) => (
@@ -859,14 +1110,14 @@ export default function MainChat({ user, onLogout }: {
                     className={`px-3 py-2 sm:px-4 sm:py-3 rounded-lg ${
                       message.isUser
                         ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-tr-none"
-                        : "bg-[#1E2128] border border-[#2A2F3A] text-white rounded-tl-none"
+                        : "bg-[#1E2128] border border-[#2A2F3A] text-white rounded-tl-none relative group"
                     }`}
                   >
-                    {message.isUser ? (
-                      <span className="text-sm sm:text-base">{message.text}</span>
-                    ) : (
-                      <span className="text-sm sm:text-base"><DirectText text={message.text} /></span>
-                    )}
+                    <MessageRenderer 
+                      text={message.text}
+                      isUser={message.isUser}
+                      chatMode={chatMode}
+                    />
                     <div 
                       className={`text-xs text-gray-300 opacity-80 ${
                         message.isUser ? "text-right" : "text-left"
@@ -919,6 +1170,13 @@ export default function MainChat({ user, onLogout }: {
                   disabled={isSending}
                 />
                 <div className="flex-shrink-0 flex items-center gap-1 sm:gap-2">
+                  <Button
+                    onClick={() => alert("Coming soon 💜 - Upload images, videos, and documents!")}
+                    className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 h-8 w-8 sm:h-10 sm:w-10 p-0 rounded-full flex items-center justify-center shadow-md"
+                    title="Upload files (Coming Soon)"
+                  >
+                    <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </Button>
                   <Button
                     type="button"
                     onClick={handleMicClick}
@@ -993,7 +1251,7 @@ export default function MainChat({ user, onLogout }: {
                   <div className="text-xs text-gray-400 ml-auto sm:ml-0 flex items-center">
                     <span className="mr-1">Messages: {messages.length}</span>
                     <span>•</span>
-                    <span className="mx-1">💬 {120 - userTurns}</span>
+                    <span className="mx-1">💬 {150 - userTurns}</span>
                     <span>•</span>
                     <span className="ml-1">🎙 {80 - voiceUserTurns}</span>
                   </div>
@@ -1036,6 +1294,51 @@ export default function MainChat({ user, onLogout }: {
           </div>
         </div>
       </div>
+
+      {/* PWA Install Notification */}
+      <PWAInstallNotification
+        isOpen={showPWAInstallPrompt}
+        onClose={() => setShowPWAInstallPrompt(false)}
+        onDismiss={() => {
+          setShowPWAInstallPrompt(false)
+          localStorage.setItem(`fedup-pwa-seen-${user.uid}`, 'true')
+        }}
+        userName={user.name?.split(' ')[0] || "friend"}
+      />
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-[#1E2128] border border-[#2A2F3A] rounded-lg p-6 max-w-sm mx-4">
+            <h4 className="text-lg font-medium text-white mb-2">Delete chat history?</h4>
+            <p className="text-sm text-gray-400 mb-4">This will permanently delete all messages in this conversation.</p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 text-gray-400 hover:text-white bg-transparent border-gray-700 hover:bg-gray-800"
+                onClick={() => setShowDeleteConfirm(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                onClick={handleDeleteAll}
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5-Hour Reminder Notification */}
+      <ReminderNotification
+        isVisible={showReminder}
+        onDismiss={() => setShowReminder(false)}
+        userName={user.name?.split(' ')[0] || "friend"}
+      />
+
     </div>
   );
 }

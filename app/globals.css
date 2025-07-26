@@ -59,3 +59,74 @@
 * {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
 }
+
+/* Code editor enhancements */
+.code-editor-container {
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Consolas', 'Courier New', monospace;
+}
+
+.code-line-number {
+  user-select: none;
+  pointer-events: none;
+}
+
+.code-content {
+  font-feature-settings: 'liga' off, 'kern' off;
+  font-variant-ligatures: none;
+  letter-spacing: 0;
+}
+
+/* Enhanced syntax highlighting */
+.token-keyword {
+  color: #c792ea !important;
+  font-weight: 600;
+}
+
+.token-string {
+  color: #a3e583 !important;
+}
+
+.token-comment {
+  color: #546e7a !important;
+  font-style: italic;
+}
+
+.token-number {
+  color: #5c98c7 !important;
+}
+
+.token-function {
+  color: #82aaff !important;
+}
+
+.token-operator {
+  color: #89ddff !important;
+}
+
+/* VS Code like selection */
+.code-content::selection,
+.code-content *::selection {
+  background-color: #3392ff33;
+}
+
+/* Code block animations */
+.code-block-enter {
+  animation: slideInCode 0.3s ease-out;
+}
+
+@keyframes slideInCode {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Copy button hover effects */
+.copy-button-success {
+  background-color: #22c55e !important;
+  color: white !important;
+}

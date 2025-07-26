@@ -1,0 +1,9 @@
+# FED UP Android APK
+
+This APK file will be uploaded soon. 
+
+For now, you can install the web app by:
+1. Adding to Home Screen from your browser
+2. Using the PWA install prompt
+
+Stay tuned for the Android app release!
