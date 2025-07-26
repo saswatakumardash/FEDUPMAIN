@@ -142,7 +142,6 @@ Next.js 14 (App Router)
 ```
 API Routes (Next.js)
 ├── /api/gemini (Main Chat AI)
-├── /api/gemini-demo (Demo Chat AI)
 ├── /api/waitlist (Waitlist Management)
 └── Firebase Auth (Authentication)
 ```
@@ -228,16 +227,6 @@ Features:
 - User authentication state
 - IST timezone display
 - Error handling and fallbacks
-```
-
-#### ChatDemo.tsx
-```typescript
-Features:
-- Demo chat without authentication
-- Device-based limit tracking
-- Voice functionality
-- Google sign-in integration
-- Limit exceeded handling
 ```
 
 #### Navigation Components
@@ -505,14 +494,6 @@ Body: {
 - **Rate Limiting**: Request throttling
 - **CORS Headers**: Cross-origin support
 
-### Demo Chat API (`/api/gemini-demo`)
-
-#### Similar structure to main API
-- Same request/response format
-- Simplified prompt for demo
-- No user authentication required
-- Device-based rate limiting
-
 ### Waitlist API (`/api/waitlist`)
 
 #### Request Format
@@ -626,7 +607,6 @@ FEDUPMAIN/
 ├── components/         # React components
 │   ├── ui/            # Shadcn UI components
 │   ├── MainChat.tsx   # Main chat interface
-│   ├── ChatDemo.tsx   # Demo interface
 │   └── [other].tsx    # Feature components
 ├── lib/               # Utility libraries
 │   ├── gemini.ts     # AI integration

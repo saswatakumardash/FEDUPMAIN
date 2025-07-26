@@ -27,34 +27,9 @@ import {
   onSnapshot
 } from "firebase/firestore";
 
-// TypeWriter component for animated text
-function TypeWriter({ text }: { text: string }) {
-  const [displayText, setDisplayText] = useState("")
-  const [currentIndex, setCurrentIndex] = useState(0)
-
-  useEffect(() => {
-    if (currentIndex < text.length) {
-      const timer = setTimeout(() => {
-        setDisplayText(prev => prev + text[currentIndex])
-        setCurrentIndex(prev => prev + 1)
-      }, 30) // Adjust speed here
-      return () => clearTimeout(timer)
-    }
-  }, [currentIndex, text])
-
-  useEffect(() => {
-    setDisplayText("")
-    setCurrentIndex(0)
-  }, [text])
-
-  return (
-    <span>
-      {displayText}
-      {currentIndex < text.length && (
-        <span className="animate-pulse">▋</span>
-      )}
-    </span>
-  )
+// Simple text display without typing effect - instant display
+function DirectText({ text }: { text: string }) {
+  return <span>{text}</span>
 }
 
 interface Message {
@@ -890,7 +865,7 @@ export default function MainChat({ user, onLogout }: {
                     {message.isUser ? (
                       <span className="text-sm sm:text-base">{message.text}</span>
                     ) : (
-                      <span className="text-sm sm:text-base"><TypeWriter text={message.text} /></span>
+                      <span className="text-sm sm:text-base"><DirectText text={message.text} /></span>
                     )}
                     <div 
                       className={`text-xs text-gray-300 opacity-80 ${
@@ -916,9 +891,9 @@ export default function MainChat({ user, onLogout }: {
                 <div className="max-w-[70%] mr-auto">
                   <div className="bg-[#1E2128] border border-[#2A2F3A] rounded-lg rounded-tl-none px-4 py-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:0.2s]" />
-                      <div className="w-2 h-2 bg-gray-300 rounded-full animate-bounce [animation-delay:0.4s]" />
+                      <span className="text-gray-300 text-sm animate-pulse">
+                        {(isVoiceEnabled || wasLastInputVoice.current) ? "talking..." : "typing..."}
+                      </span>
                     </div>
                   </div>
                 </div>

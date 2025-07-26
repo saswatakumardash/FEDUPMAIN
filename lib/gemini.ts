@@ -33,6 +33,8 @@ function getFallbackResponse(message: string): string {
 
 const systemPrompt = `You are someone's BESTIE or BEST FRIEND. Not a therapist, not a helper - just their closest friend who truly cares about them and is here to help them through life's challenges.
 
+CRITICAL TIME HANDLING: When asked about current time, date, or "what time is it", ALWAYS use the EXACT time information provided in the CURRENT TIME INFO section. NEVER guess or use outdated information. The time provided is accurate IST (India Standard Time).
+
 IMPORTANT: Only mention current date, time, or temporal information when the user specifically asks about it (like "what time is it?", "what's today's date?", etc.). Do not automatically include date/time context in regular conversations.
 
 Your personality as their bestie/best friend:
@@ -59,7 +61,7 @@ Your personality as their bestie/best friend:
 - SOCIAL CHALLENGES: Help navigate difficult relationships or social situations
 - PRODUCTIVITY: Provide strategies to overcome procrastination and achieve goals
 - CURRENT EVENTS: Provide up-to-date information and context when specifically asked
-- DATE/TIME QUESTIONS: Provide accurate current date and time information ONLY when specifically asked
+- DATE/TIME QUESTIONS: Provide accurate current date and time information ONLY when specifically asked - USE THE EXACT TIME PROVIDED
 
 **CRITICAL RULES:**
 1. **ABSOLUTELY NEVER mention being an AI, assistant, bot, or any technology.** You are their BESTIE or BEST FRIEND. ALWAYS.
@@ -70,6 +72,7 @@ Your personality as their bestie/best friend:
 6. Be their biggest supporter and their voice of reason when they need it
 7. **ONLY mention current time, date, or temporal information when the user specifically asks for it** - don't include automatic date/time context
 8. **Use emojis naturally like a best friend texting** - they enhance the conversation and work perfectly with voice features
+9. **TIME ACCURACY: When asked about time, ALWAYS use the exact time provided in CURRENT TIME INFO section. Never guess or provide wrong time.**
 
 You're not here to be professional - you're here to be the friend they need who will help them get real results in their life.`;
 
@@ -82,11 +85,12 @@ export async function generateResponse(message: string, conversationHistory: str
     return "FED UP is made by Saswata Kumar Dash. To know more about him, visit https://skds.site";
   }
 
+  // Try main API key first
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.warn("Gemini API key not found, using fallback response");
-      return getFallbackResponse(message);
+      console.warn("Main Gemini API key not found, trying demo API key");
+      return await tryDemoApiKey(message, conversationHistory);
     }
 
     if (!genAI) {
@@ -97,7 +101,7 @@ export async function generateResponse(message: string, conversationHistory: str
     const timeQuestionTriggers = [
       "what time", "current time", "time is", "what's the time", "tell me the time",
       "what date", "today's date", "current date", "what day", "today is",
-      "what's today", "date today", "time now", "right now"
+      "what's today", "date today", "time now", "right now", "time in india","time according to the location"
     ];
     
     const isTimeQuestion = timeQuestionTriggers.some(trigger => 
@@ -107,23 +111,26 @@ export async function generateResponse(message: string, conversationHistory: str
     // Add temporal context only if user is asking for current time/date
     let contextualPrompt = systemPrompt;
     if (isTimeQuestion) {
-      const currentDate = new Date().toLocaleDateString('en-US', { 
-        timeZone: 'Asia/Kolkata',
+      // Get accurate current time in IST
+      const now = new Date();
+      const istTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+      
+      const currentDate = istTime.toLocaleDateString('en-US', { 
         weekday: 'long', 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
       });
-      const currentTime = new Date().toLocaleTimeString('en-US', { 
-        timeZone: 'Asia/Kolkata',
+      const currentTime = istTime.toLocaleTimeString('en-US', { 
         hour: 'numeric', 
         minute: '2-digit', 
         hour12: true 
       });
       
-      contextualPrompt += `\n\nCURRENT TIME INFO (since you asked):
+      contextualPrompt += `\n\nCURRENT TIME INFO (ACCURATE IST TIME):
 - Today's date is ${currentDate}
-- Current time is ${currentTime} (IST)`;
+- Current time is ${currentTime} (IST - India Standard Time)
+- IMPORTANT: Always provide accurate current time when asked. Use this exact time information.`;
     }
 
     // Compose the full prompt with system prompt and conversation history
@@ -137,7 +144,70 @@ export async function generateResponse(message: string, conversationHistory: str
 
     return result.text || getFallbackResponse(message);
   } catch (error) {
-    console.error("Error generating response:", error);
+    console.error("Main API key failed, trying demo API key:", error);
+    return await tryDemoApiKey(message, conversationHistory);
+  }
+}
+
+// Fallback function to try demo API key
+async function tryDemoApiKey(message: string, conversationHistory: string[] = []): Promise<string> {
+  try {
+    const demoApiKey = process.env.GEMINI_DEMO_API_KEY;
+    if (!demoApiKey) {
+      console.warn("Demo API key also not found, using fallback response");
+      return getFallbackResponse(message);
+    }
+
+    const demoGenAI = new GoogleGenAI({ apiKey: demoApiKey });
+
+    // Check if user is asking for current time/date information
+    const timeQuestionTriggers = [
+      "what time", "current time", "time is", "what's the time", "tell me the time",
+      "what date", "today's date", "current date", "what day", "today is",
+      "what's today", "date today", "time now", "right now", "time in india","time according to the location"
+    ];
+    
+    const isTimeQuestion = timeQuestionTriggers.some(trigger => 
+      message.toLowerCase().includes(trigger)
+    );
+
+    // Add temporal context only if user is asking for current time/date
+    let contextualPrompt = systemPrompt;
+    if (isTimeQuestion) {
+      // Get accurate current time in IST
+      const now = new Date();
+      const istTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+      
+      const currentDate = istTime.toLocaleDateString('en-US', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      const currentTime = istTime.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit', 
+        hour12: true 
+      });
+      
+      contextualPrompt += `\n\nCURRENT TIME INFO (ACCURATE IST TIME):
+- Today's date is ${currentDate}
+- Current time is ${currentTime} (IST - India Standard Time)
+- IMPORTANT: Always provide accurate current time when asked. Use this exact time information.`;
+    }
+
+    // Compose the full prompt with system prompt and conversation history
+    const fullPrompt = `${contextualPrompt}\n\nConversation so far: ${conversationHistory.join("\n")}\n\nUser: ${message}\n\nFED UP:`;
+
+    // Use Gemini 2.0 Flash with demo API key
+    const result = await demoGenAI.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: [{ role: "user", parts: [{ text: fullPrompt }] }],
+    });
+
+    return result.text || getFallbackResponse(message);
+  } catch (error) {
+    console.error("Demo API key also failed, using fallback response:", error);
     return getFallbackResponse(message);
   }
 }

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateResponse } from '@/lib/gemini';
-import { generateDemoResponse } from '@/lib/gemini-demo';
 import { searchWeb } from '@/lib/web-search';
 
 export async function POST(req: NextRequest) {
@@ -25,20 +24,30 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      // Check if message might benefit from web search
-      const searchTriggers = [
-        'what time', 'what date', 'current', 'latest', 'recent', 'news', 'today', 
-        'what\'s happening', 'weather', 'stock', 'price', 'when is', 'what year',
-        'how much', 'cost', 'trending', 'popular', 'new', 'update'
+      // Check if message might benefit from web search (but exclude time queries which are handled internally)
+      const timeQueries = [
+        'what time', 'current time', 'time is', 'what\'s the time', 'tell me the time',
+        'what date', 'today\'s date', 'current date', 'what day', 'today is',
+        'what\'s today', 'date today', 'time now', 'right now', 'time in india'
       ];
       
-      const needsSearch = searchTriggers.some(trigger => 
+      const isTimeQuery = timeQueries.some(trigger => 
+        message.toLowerCase().includes(trigger)
+      );
+
+      const searchTriggers = [
+        'latest', 'recent', 'news', 'what\'s happening', 'weather', 'stock', 'price', 
+        'when is', 'what year', 'how much', 'cost', 'trending', 'popular', 'new', 'update'
+      ];
+      
+      // Only search web for non-time queries
+      const needsSearch = !isTimeQuery && searchTriggers.some(trigger => 
         message.toLowerCase().includes(trigger)
       );
       
       let enhancedHistory = conversationHistory || [];
       
-      // Add web search context if needed
+      // Add web search context if needed (excluding time queries)
       if (needsSearch) {
         try {
           const webInfo = await searchWeb(message);
