@@ -13,10 +13,7 @@ import EmojiGlobe from "./EmojiGlobe"
 import BackgroundAnimation from "./BackgroundAnimation"
 import FileUpload from "./FileUpload"
 import LimitReachedModal from "./LimitReachedModal"
-<<<<<<< HEAD
 
-=======
->>>>>>> 58a6b5b (Remove PWA install notification and related code)
 import ReminderNotification from "./ReminderNotification"
 import MessageRenderer from "./MessageRenderer"
 import { db } from "@/lib/firebase";
