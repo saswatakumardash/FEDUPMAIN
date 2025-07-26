@@ -4,7 +4,7 @@ const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN
 const VISITOR_COUNT_KEY = 'visitor_count'
 const VISITOR_IPS_KEY = 'visitor_ips'
-const IP_EXPIRY_HOURS = 24 // Consider same IP as same visitor for 24 hours
+const IP_EXPIRY_HOURS = 1 // Consider same IP as same visitor for 24 hours
 
 // In-memory fallback for development
 let devVisitorCount = 1000 // Start with some base count
